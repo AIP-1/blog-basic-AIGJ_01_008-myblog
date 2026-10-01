@@ -1,6 +1,7 @@
 package com.example.blog.service;
 
 import com.example.blog.domain.Category;
+import com.example.blog.domain.User;
 import com.example.blog.repository.CategoryRepository;
 import com.example.blog.repository.PostRepository;
 import org.springframework.http.HttpStatus;
@@ -8,9 +9,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * 카테고리는 두 종류: 공용(owner = null, 관리자가 관리)과 회원 개인 블로그용(owner = 그 회원).
+ * 아래 메서드의 owner 인자가 null 이면 공용 카테고리를 다룬다.
+ */
 @Service
 @Transactional(readOnly = true)
 public class CategoryService {
@@ -25,13 +32,30 @@ public class CategoryService {
         this.postRepository = postRepository;
     }
 
+    /** 공용 카테고리 */
     public List<Category> list() {
-        return categoryRepository.findAllByOrderBySortOrderAscIdAsc();
+        return categoryRepository.findByOwnerIsNullOrderBySortOrderAscIdAsc();
     }
 
-    /** null 이면 미분류 */
-    public Category findOrNull(Long id) {
-        return id == null ? null : get(id);
+    /** 회원 개인 블로그 카테고리 */
+    public List<Category> listOf(String username) {
+        return categoryRepository.findByOwnerUsernameOrderBySortOrderAscIdAsc(username);
+    }
+
+    public List<Category> list(User owner) {
+        return owner == null ? list() : listOf(owner.getUsername());
+    }
+
+    /** 글에 붙일 카테고리. null 이면 미분류. 공용이거나 글쓴이 본인의 카테고리만 쓸 수 있다 */
+    public Category findUsable(Long id, String username) {
+        if (id == null) {
+            return null;
+        }
+        Category category = get(id);
+        if (category.getOwner() != null && !category.isOwnedBy(username)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "쓸 수 없는 카테고리입니다.");
+        }
+        return category;
     }
 
     public Category get(Long id) {
@@ -44,23 +68,23 @@ public class CategoryService {
     }
 
     @Transactional
-    public Category create(String name) {
-        String trimmed = validName(name, null);
-        int nextOrder = list().stream().mapToInt(Category::getSortOrder).max().orElse(0) + 1;
-        return categoryRepository.save(new Category(trimmed, nextOrder));
+    public Category create(String name, User owner) {
+        String trimmed = validName(name, owner, null);
+        int nextOrder = list(owner).stream().mapToInt(Category::getSortOrder).max().orElse(0) + 1;
+        return categoryRepository.save(new Category(trimmed, nextOrder, owner));
     }
 
     @Transactional
-    public void rename(Long id, String name) {
-        Category category = get(id);
-        category.rename(validName(name, category));
+    public void rename(Long id, String name, User owner) {
+        Category category = getOwned(id, owner);
+        category.rename(validName(name, owner, category));
     }
 
     /** 바로 위/아래 카테고리와 순서를 바꾼다 */
     @Transactional
-    public void move(Long id, boolean up) {
-        List<Category> categories = new java.util.ArrayList<>(list());
-        int index = categories.indexOf(get(id));
+    public void move(Long id, boolean up, User owner) {
+        List<Category> categories = new ArrayList<>(list(owner));
+        int index = categories.indexOf(getOwned(id, owner));
         int target = up ? index - 1 : index + 1;
         if (index < 0 || target < 0 || target >= categories.size()) {
             return;
@@ -73,13 +97,23 @@ public class CategoryService {
 
     /** 삭제한 카테고리의 글은 미분류가 된다 */
     @Transactional
-    public void delete(Long id) {
-        Category category = get(id);
+    public void delete(Long id, User owner) {
+        Category category = getOwned(id, owner);
         postRepository.clearCategory(category);
         categoryRepository.delete(category);
     }
 
-    private String validName(String name, Category self) {
+    /** 다른 사람의 카테고리는 없는 것처럼 404 */
+    private Category getOwned(Long id, User owner) {
+        Category category = get(id);
+        Long ownerId = category.getOwner() == null ? null : category.getOwner().getId();
+        if (!Objects.equals(ownerId, owner == null ? null : owner.getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "카테고리를 찾을 수 없습니다.");
+        }
+        return category;
+    }
+
+    private String validName(String name, User owner, Category self) {
         String trimmed = name == null ? "" : name.trim();
         if (trimmed.isEmpty()) {
             throw new IllegalArgumentException("카테고리 이름을 입력하세요.");
@@ -87,7 +121,9 @@ public class CategoryService {
         if (trimmed.length() > MAX_NAME_LENGTH) {
             throw new IllegalArgumentException("카테고리 이름은 " + MAX_NAME_LENGTH + "자 이하로 입력하세요.");
         }
-        boolean duplicate = categoryRepository.findByName(trimmed)
+        boolean duplicate = (owner == null
+                ? categoryRepository.findByOwnerIsNullAndName(trimmed)
+                : categoryRepository.findByOwnerUsernameAndName(owner.getUsername(), trimmed))
                 .filter(found -> self == null || !found.getId().equals(self.getId()))
                 .isPresent();
         if (duplicate) {

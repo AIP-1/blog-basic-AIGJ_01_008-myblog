@@ -3,6 +3,7 @@
 <head th:replace="~{fragments/layout :: head(${postId == null} ? '새 글' : '글 수정')}"></head>
 <body class="editor-page">
 <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css">
+<link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/theme/toastui-editor-dark.min.css">
 <header th:replace="~{fragments/layout :: header}"></header>
 
 <main class="container editor-wrap">
@@ -22,7 +23,12 @@
         <div class="editor-head">
             <select th:field="*{categoryId}" class="editor-category" aria-label="카테고리">
                 <option value="">카테고리 (미분류)</option>
-                <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}">카테고리</option>
+                <optgroup label="공용">
+                    <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}">카테고리</option>
+                </optgroup>
+                <optgroup label="내 블로그" th:unless="${#lists.isEmpty(myCategories)}">
+                    <option th:each="c : ${myCategories}" th:value="${c.id}" th:text="${c.name}">카테고리</option>
+                </optgroup>
             </select>
             <input type="text" th:field="*{title}" class="editor-title" placeholder="제목을 입력하세요" maxlength="200"
                    autocomplete="off">
@@ -81,7 +87,13 @@
         initialValue: contentField.value,
         placeholder: '내용을 입력하세요. 이미지는 끌어다 놓거나 붙여넣을 수 있어요.',
         usageStatistics: false,
+        theme: blogTheme.current() === 'dark' ? 'dark' : 'light',
         hooks: {addImageBlobHook: uploadImage}
+    });
+    // 사이트 테마를 바꾸면 에디터도 따라 바꾼다
+    document.addEventListener('themechange', e => {
+        document.querySelector('.toastui-editor-defaultUI')
+            ?.classList.toggle('toastui-editor-dark', e.detail === 'dark');
     });
 
     async function uploadImage(blob, callback) {

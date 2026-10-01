@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('카테고리 관리')}"></head>
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
 
@@ -8,12 +8,14 @@
     <nav th:replace="~{fragments/layout :: manageNav}"></nav>
 
     <section class="content">
-        <h1>카테고리 관리</h1>
+        <h1 th:text="${pageTitle}">카테고리 관리</h1>
+        <p class="hint" th:if="${menu == 'myCategories'}">내 블로그에서만 쓰는 카테고리예요. 글쓰기 화면의 <strong>내 블로그</strong> 묶음에서 고를 수 있어요.</p>
+        <p class="hint" th:if="${menu == 'categories'}">모든 회원이 함께 쓰는 카테고리로, 홈 사이드바에 보여요.</p>
         <p class="hint">카테고리를 삭제하면 그 안의 글은 지워지지 않고 <strong>미분류</strong>가 돼요.</p>
         <p class="notice" th:if="${message}" th:text="${message}"></p>
         <p class="error-box" th:if="${error}" th:text="${error}"></p>
 
-        <form th:action="@{/manage/categories}" method="post" class="add-row">
+        <form th:action="@{__${categoryBase}__}" method="post" class="add-row">
             <input type="text" name="name" placeholder="새 카테고리 이름" maxlength="30" required>
             <button type="submit" class="btn btn-primary">추가</button>
         </form>
@@ -21,21 +23,21 @@
         <ul class="category-manage">
             <li th:each="c, it : ${categories}">
                 <div class="order-buttons">
-                    <form th:action="@{/manage/categories/{id}/move(id=${c.id})}" method="post" class="inline">
+                    <form th:action="@{__${categoryBase}__/{id}/move(id=${c.id})}" method="post" class="inline">
                         <input type="hidden" name="direction" value="up">
                         <button type="submit" class="btn btn-sm" th:disabled="${it.first}" title="위로">▲</button>
                     </form>
-                    <form th:action="@{/manage/categories/{id}/move(id=${c.id})}" method="post" class="inline">
+                    <form th:action="@{__${categoryBase}__/{id}/move(id=${c.id})}" method="post" class="inline">
                         <input type="hidden" name="direction" value="down">
                         <button type="submit" class="btn btn-sm" th:disabled="${it.last}" title="아래로">▼</button>
                     </form>
                 </div>
-                <form th:action="@{/manage/categories/{id}/rename(id=${c.id})}" method="post" class="rename">
+                <form th:action="@{__${categoryBase}__/{id}/rename(id=${c.id})}" method="post" class="rename">
                     <input type="text" name="name" th:value="${c.name}" maxlength="30" required aria-label="카테고리 이름">
                     <button type="submit" class="btn btn-sm">이름 변경</button>
                 </form>
                 <span class="meta">글 <span th:text="${postCounts[c.id]}">0</span>개</span>
-                <form th:action="@{/manage/categories/{id}/delete(id=${c.id})}" method="post" class="inline"
+                <form th:action="@{__${categoryBase}__/{id}/delete(id=${c.id})}" method="post" class="inline"
                       th:attr="data-name=${c.name}"
                       onsubmit="return confirm('\'' + this.dataset.name + '\' 카테고리를 삭제할까요?');">
                     <button type="submit" class="btn btn-sm btn-danger">삭제</button>

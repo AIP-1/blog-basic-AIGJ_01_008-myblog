@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('구독 피드')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container layout">
+    <aside class="sidebar">
+        <section class="side-box">
+            <h3>구독 중인 블로그</h3>
+            <ul class="cat-list">
+                <li th:each="s : ${subscriptions}">
+                    <a th:href="@{/blog/{u}(u=${s.blogOwner.username})}" th:text="${s.blogOwner.blogTitle}">블로그</a>
+                </li>
+            </ul>
+            <p th:if="${#lists.isEmpty(subscriptions)}" class="meta">아직 구독한 블로그가 없어요.</p>
+            <p class="meta"><a th:href="@{/blogs}">회원 블로그 둘러보기 →</a></p>
+        </section>
+    </aside>
+
+    <section class="content">
+        <h1>구독 피드</h1>
+        <p class="hint">구독한 블로그의 새 글이 최신순으로 모여요.</p>
+
+        <th:block th:replace="~{fragments/layout :: postList(${posts})}"></th:block>
+
+        <nav class="pagination" th:if="${posts.totalPages > 1}">
+            <a th:each="i : ${#numbers.sequence(0, posts.totalPages - 1)}"
+               th:href="@{/feed(page=${i})}"
+               th:text="${i + 1}"
+               th:classappend="${i == posts.number} ? 'current'">1</a>
+        </nav>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

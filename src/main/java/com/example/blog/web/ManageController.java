@@ -2,9 +2,13 @@ package com.example.blog.web;
 
 import com.example.blog.domain.Category;
 import com.example.blog.domain.PostStatus;
+import com.example.blog.domain.User;
+import com.example.blog.service.BlogService;
 import com.example.blog.service.BlogSettingsService;
 import com.example.blog.service.CategoryService;
 import com.example.blog.service.PostService;
+import com.example.blog.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -15,7 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 티스토리 관리 화면처럼: 글 관리(모든 사용자), 카테고리·블로그 설정(관리자) */
+/** 티스토리 관리 화면처럼: 글·내 블로그·구독 관리(모든 사용자), 공용 카테고리·사이트 설정(관리자) */
 @Controller
 @RequestMapping("/manage")
 public class ManageController {
@@ -26,12 +30,17 @@ public class ManageController {
     private final PostService postService;
     private final CategoryService categoryService;
     private final BlogSettingsService blogSettingsService;
+    private final BlogService blogService;
+    private final UserService userService;
 
     public ManageController(PostService postService, CategoryService categoryService,
-                            BlogSettingsService blogSettingsService) {
+                            BlogSettingsService blogSettingsService, BlogService blogService,
+                            UserService userService) {
         this.postService = postService;
         this.categoryService = categoryService;
         this.blogSettingsService = blogSettingsService;
+        this.blogService = blogService;
+        this.userService = userService;
     }
 
     @ModelAttribute("isAdmin")
@@ -64,6 +73,20 @@ public class ManageController {
         return filter == null ? "redirect:/manage" : "redirect:/manage?status=" + filter;
     }
 
+    /** 공지 등록/해제 (관리자). back 이 있으면 그 글 화면으로 돌아간다 */
+    @PostMapping("/posts/{id}/notice")
+    public String changeNotice(@PathVariable Long id, @RequestParam boolean notice,
+                               @RequestParam(required = false) PostStatus filter,
+                               @RequestParam(defaultValue = "false") boolean back,
+                               Authentication auth, RedirectAttributes redirect) {
+        postService.changeNotice(id, notice, auth);
+        redirect.addFlashAttribute("message", notice ? "공지사항으로 등록했습니다." : "공지사항에서 내렸습니다.");
+        if (back) {
+            return "redirect:/posts/" + id;
+        }
+        return filter == null ? "redirect:/manage" : "redirect:/manage?status=" + filter;
+    }
+
     @PostMapping("/posts/{id}/delete")
     public String deletePost(@PathVariable Long id, @RequestParam(required = false) PostStatus filter,
                              Authentication auth, RedirectAttributes redirect) {
@@ -72,40 +95,67 @@ public class ManageController {
         return filter == null ? "redirect:/manage" : "redirect:/manage?status=" + filter;
     }
 
-    // ===== 카테고리 관리 (관리자) =====
+    // ===== 카테고리 관리: 공용(관리자) / 내 블로그(모든 사용자) =====
+
+    private static final String SITE_CATEGORIES = "/manage/categories";
+    private static final String MY_CATEGORIES = "/manage/blog/categories";
 
     @GetMapping("/categories")
-    public String categories(Model model) {
-        List<Category> categories = categoryService.list();
+    public String siteCategories(Model model) {
+        return categoryPage(null, SITE_CATEGORIES, "공용 카테고리 관리", model);
+    }
+
+    @GetMapping("/blog/categories")
+    public String myCategories(Authentication auth, Model model) {
+        return categoryPage(userService.get(auth.getName()), MY_CATEGORIES, "내 블로그 카테고리", model);
+    }
+
+    private String categoryPage(User owner, String base, String title, Model model) {
+        List<Category> categories = categoryService.list(owner);
         Map<Long, Long> postCounts = new LinkedHashMap<>();
         categories.forEach(c -> postCounts.put(c.getId(), categoryService.postCount(c)));
-        model.addAttribute("menu", "categories");
+        model.addAttribute("menu", owner == null ? "categories" : "myCategories");
+        model.addAttribute("categoryBase", base);
+        model.addAttribute("pageTitle", title);
         model.addAttribute("categories", categories);
         model.addAttribute("postCounts", postCounts);
         return "manage/categories";
     }
 
-    @PostMapping("/categories")
-    public String addCategory(@RequestParam String name, RedirectAttributes redirect) {
-        return handle(redirect, () -> categoryService.create(name), "카테고리를 추가했습니다.");
+    @PostMapping({"/categories", "/blog/categories"})
+    public String addCategory(@RequestParam String name, Authentication auth, HttpServletRequest request,
+                              RedirectAttributes redirect) {
+        User owner = categoryOwner(request, auth);
+        return handle(redirect, owner, () -> categoryService.create(name, owner), "카테고리를 추가했습니다.");
     }
 
-    @PostMapping("/categories/{id}/rename")
-    public String renameCategory(@PathVariable Long id, @RequestParam String name, RedirectAttributes redirect) {
-        return handle(redirect, () -> categoryService.rename(id, name), "이름을 바꿨습니다.");
+    @PostMapping({"/categories/{id}/rename", "/blog/categories/{id}/rename"})
+    public String renameCategory(@PathVariable Long id, @RequestParam String name, Authentication auth,
+                                 HttpServletRequest request, RedirectAttributes redirect) {
+        User owner = categoryOwner(request, auth);
+        return handle(redirect, owner, () -> categoryService.rename(id, name, owner), "이름을 바꿨습니다.");
     }
 
-    @PostMapping("/categories/{id}/move")
-    public String moveCategory(@PathVariable Long id, @RequestParam String direction, RedirectAttributes redirect) {
-        return handle(redirect, () -> categoryService.move(id, "up".equals(direction)), null);
+    @PostMapping({"/categories/{id}/move", "/blog/categories/{id}/move"})
+    public String moveCategory(@PathVariable Long id, @RequestParam String direction, Authentication auth,
+                               HttpServletRequest request, RedirectAttributes redirect) {
+        User owner = categoryOwner(request, auth);
+        return handle(redirect, owner, () -> categoryService.move(id, "up".equals(direction), owner), null);
     }
 
-    @PostMapping("/categories/{id}/delete")
-    public String deleteCategory(@PathVariable Long id, RedirectAttributes redirect) {
-        return handle(redirect, () -> categoryService.delete(id), "카테고리를 삭제했습니다. 속해 있던 글은 미분류가 됩니다.");
+    @PostMapping({"/categories/{id}/delete", "/blog/categories/{id}/delete"})
+    public String deleteCategory(@PathVariable Long id, Authentication auth, HttpServletRequest request,
+                                 RedirectAttributes redirect) {
+        User owner = categoryOwner(request, auth);
+        return handle(redirect, owner, () -> categoryService.delete(id, owner), "카테고리를 삭제했습니다. 속해 있던 글은 미분류가 됩니다.");
     }
 
-    private String handle(RedirectAttributes redirect, Runnable action, String successMessage) {
+    /** /manage/blog/... 요청이면 로그인한 사용자 본인, 아니면 공용(null) */
+    private User categoryOwner(HttpServletRequest request, Authentication auth) {
+        return request.getRequestURI().contains(MY_CATEGORIES) ? userService.get(auth.getName()) : null;
+    }
+
+    private String handle(RedirectAttributes redirect, User owner, Runnable action, String successMessage) {
         try {
             action.run();
             if (successMessage != null) {
@@ -114,10 +164,47 @@ public class ManageController {
         } catch (IllegalArgumentException e) {
             redirect.addFlashAttribute("error", e.getMessage());
         }
-        return "redirect:/manage/categories";
+        return "redirect:" + (owner == null ? SITE_CATEGORIES : MY_CATEGORIES);
     }
 
-    // ===== 블로그 설정 (관리자) =====
+    // ===== 내 블로그 설정 (모든 사용자) =====
+
+    @GetMapping("/blog")
+    public String mySettings(Authentication auth, Model model) {
+        model.addAttribute("menu", "myBlog");
+        model.addAttribute("me", userService.get(auth.getName()));
+        return "manage/blog";
+    }
+
+    @PostMapping("/blog")
+    public String saveMySettings(@RequestParam String title, @RequestParam String intro,
+                                 Authentication auth, RedirectAttributes redirect) {
+        try {
+            blogService.updateSettings(auth.getName(), title, intro);
+            redirect.addFlashAttribute("message", "저장했습니다.");
+        } catch (IllegalArgumentException e) {
+            redirect.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/manage/blog";
+    }
+
+    // ===== 구독 관리 (모든 사용자) =====
+
+    @GetMapping("/subscriptions")
+    public String subscriptions(Authentication auth, Model model) {
+        model.addAttribute("menu", "subscriptions");
+        model.addAttribute("subscriptions", blogService.subscriptions(auth.getName()));
+        return "manage/subscriptions";
+    }
+
+    @PostMapping("/subscriptions/{username}/delete")
+    public String unsubscribe(@PathVariable String username, Authentication auth, RedirectAttributes redirect) {
+        blogService.unsubscribe(auth.getName(), username);
+        redirect.addFlashAttribute("message", username + " 님의 블로그 구독을 취소했습니다.");
+        return "redirect:/manage/subscriptions";
+    }
+
+    // ===== 사이트 설정 (관리자) =====
 
     @GetMapping("/settings")
     public String settings(Model model) {

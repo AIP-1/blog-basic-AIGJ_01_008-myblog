@@ -3,9 +3,12 @@ package com.example.blog.web;
 import com.example.blog.domain.Category;
 import com.example.blog.domain.Post;
 import com.example.blog.domain.PostStatus;
+import com.example.blog.repository.BlogSummary;
+import com.example.blog.service.BlogService;
 import com.example.blog.service.CategoryService;
 import com.example.blog.service.MarkdownService;
 import com.example.blog.service.PostService;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -28,16 +32,50 @@ public class PostController {
     private final PostService postService;
     private final CategoryService categoryService;
     private final MarkdownService markdownService;
+    private final BlogService blogService;
+    private final BlogVisits blogVisits;
+    private final PostViews postViews;
 
-    public PostController(PostService postService, CategoryService categoryService, MarkdownService markdownService) {
+    public PostController(PostService postService, CategoryService categoryService, MarkdownService markdownService,
+                          BlogService blogService, BlogVisits blogVisits, PostViews postViews) {
         this.postService = postService;
         this.categoryService = categoryService;
         this.markdownService = markdownService;
+        this.blogService = blogService;
+        this.blogVisits = blogVisits;
+        this.postViews = postViews;
     }
+
+    private static final int SIDEBAR_BLOGS = 5;
 
     @ModelAttribute("categories")
     public List<Category> categories() {
         return categoryService.list();
+    }
+
+    /** 글쓰기 화면의 '내 블로그' 카테고리 */
+    @ModelAttribute("myCategories")
+    public List<Category> myCategories(Authentication auth) {
+        return auth == null ? List.of() : categoryService.listOf(auth.getName());
+    }
+
+    /** 사이드바의 공지사항 */
+    @ModelAttribute("notices")
+    public List<Post> notices() {
+        return postService.notices();
+    }
+
+    /** 사이드바의 인기 글 (조회수 상위) */
+    @ModelAttribute("popularPosts")
+    public List<Post> popularPosts() {
+        return postService.popular();
+    }
+
+    /** 사이드바의 회원 블로그 (방문 순위 상위) */
+    @ModelAttribute("memberBlogs")
+    public List<BlogSummary> memberBlogs() {
+        List<BlogSummary> blogs = blogService.blogs();
+        return blogs.subList(0, Math.min(SIDEBAR_BLOGS, blogs.size()));
     }
 
     @GetMapping("/")
@@ -53,12 +91,17 @@ public class PostController {
     }
 
     @GetMapping("/posts/{id}")
-    public String detail(@PathVariable Long id, Authentication auth, Model model) {
+    public String detail(@PathVariable Long id, Authentication auth, HttpSession session, Model model) {
         Post post = postService.getVisible(id, auth);
+        if (post.isPublic()) {
+            blogVisits.record(post.getAuthor().getUsername(), auth, session);
+            postViews.record(id, auth, session);
+        }
         model.addAttribute("post", post);
         model.addAttribute("html", markdownService.toHtml(post.getContent()));
         model.addAttribute("summary", markdownService.summary(post.getContent(), 150));
         model.addAttribute("canEdit", postService.canEdit(post, auth));
+        model.addAttribute("like", postService.likeState(post, auth));
         model.addAttribute("prev", postService.previous(post).orElse(null));
         model.addAttribute("next", postService.next(post).orElse(null));
         model.addAttribute("curriculum", postService.curriculum());
@@ -98,6 +141,8 @@ public class PostController {
         // 임시저장 글은 발행할 때 기본값을 '공개'로
         form.setStatus(post.isDraft() ? PostStatus.PUBLIC : post.getStatus());
         model.addAttribute("form", form);
+        // 관리자가 남의 글을 고칠 때도 글쓴이의 카테고리를 고를 수 있도록
+        model.addAttribute("myCategories", categoryService.listOf(post.getAuthor().getUsername()));
         model.addAttribute("postId", id);
         model.addAttribute("isDraft", post.isDraft());
         model.addAttribute("savedAt", post.isDraft() ? post.getUpdatedAt() : null);
@@ -140,6 +185,18 @@ public class PostController {
     public String delete(@PathVariable Long id, Authentication auth) {
         postService.delete(id, auth);
         return "redirect:/";
+    }
+
+    /** 좋아요 토글. 화면에서는 fetch 로 부르고(JSON), 스크립트가 없으면 폼 전송 후 글로 돌아간다 */
+    @PostMapping("/posts/{id}/like")
+    public ResponseEntity<?> toggleLike(@PathVariable Long id, Authentication auth,
+                                        @RequestHeader(value = "Accept", defaultValue = "") String accept) {
+        PostService.LikeState state = postService.toggleLike(id, auth);
+        if (accept.contains("application/json")) {
+            return ResponseEntity.ok(Map.of("liked", state.liked(), "count", state.count()));
+        }
+        return ResponseEntity.status(HttpStatus.SEE_OTHER)
+                .location(URI.create("/posts/" + id + "#like")).build();
     }
 
     @PostMapping("/posts/{id}/comments")

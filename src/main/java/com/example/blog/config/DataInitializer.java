@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,21 +43,25 @@ public class DataInitializer implements CommandLineRunner {
     private final PostRepository postRepository;
     private final CategoryRepository categoryRepository;
     private final BlogSettingsRepository blogSettingsRepository;
+    private final JdbcTemplate jdbcTemplate;
     private final String adminPassword;
 
     public DataInitializer(UserService userService, PostRepository postRepository,
                            CategoryRepository categoryRepository, BlogSettingsRepository blogSettingsRepository,
-                           @Value("${blog.admin-password}") String adminPassword) {
+                           JdbcTemplate jdbcTemplate, @Value("${blog.admin-password}") String adminPassword) {
         this.userService = userService;
         this.postRepository = postRepository;
         this.categoryRepository = categoryRepository;
         this.blogSettingsRepository = blogSettingsRepository;
+        this.jdbcTemplate = jdbcTemplate;
         this.adminPassword = adminPassword;
     }
 
     @Override
     @Transactional
     public void run(String... args) throws IOException {
+        dropOldCategoryNameUnique();
+
         User admin = userService.exists(ADMIN_USERNAME)
                 ? userService.get(ADMIN_USERNAME)
                 : userService.register(ADMIN_USERNAME, adminPassword, "ADMIN");
@@ -64,7 +69,7 @@ public class DataInitializer implements CommandLineRunner {
         if (!blogSettingsRepository.existsById(BlogSettings.SINGLETON_ID)) {
             blogSettingsRepository.save(new BlogSettings(BlogSettingsService.DEFAULT_TITLE, BlogSettingsService.DEFAULT_DESCRIPTION));
         }
-        if (categoryRepository.count() == 0) {
+        if (categoryRepository.countByOwnerIsNull() == 0) {
             for (int i = 0; i < DEFAULT_CATEGORIES.size(); i++) {
                 categoryRepository.save(new Category(DEFAULT_CATEGORIES.get(i), i + 1));
             }
@@ -81,6 +86,26 @@ public class DataInitializer implements CommandLineRunner {
             postRepository.save(parse(raw, admin));
         }
         log.info("강좌 글 {}개를 등록했습니다. 관리자 아이디: {}", files.length, ADMIN_USERNAME);
+    }
+
+    /**
+     * 예전에는 카테고리 이름이 전체에서 유일했지만, 이제는 회원마다 같은 이름을 쓸 수 있다.
+     * ddl-auto: update 는 제약을 지우지 않으므로 기존 DB 에 남은 name 단독 UNIQUE 제약을 직접 지운다.
+     */
+    private void dropOldCategoryNameUnique() {
+        List<String> names = jdbcTemplate.queryForList("""
+                select tc.constraint_name
+                from information_schema.table_constraints tc
+                join information_schema.key_column_usage k
+                  on k.constraint_name = tc.constraint_name and k.table_name = tc.table_name
+                where tc.table_name = 'CATEGORY' and tc.constraint_type = 'UNIQUE'
+                group by tc.constraint_name
+                having count(*) = 1 and max(k.column_name) = 'NAME'
+                """, String.class);
+        for (String name : names) {
+            jdbcTemplate.execute("alter table category drop constraint \"" + name + "\"");
+            log.info("카테고리 이름 UNIQUE 제약({})을 지웠습니다.", name);
+        }
     }
 
     /**
@@ -103,8 +128,8 @@ public class DataInitializer implements CommandLineRunner {
             meta.put(line.substring(0, colon).trim(), line.substring(colon + 1).trim());
         }
         String body = text.substring(end + 4).trim();
-        Category category = categoryRepository.findByName(meta.get("category"))
-                .orElseGet(() -> categoryRepository.save(new Category(meta.get("category"), (int) categoryRepository.count() + 1)));
+        Category category = categoryRepository.findByOwnerIsNullAndName(meta.get("category"))
+                .orElseGet(() -> categoryRepository.save(new Category(meta.get("category"), (int) categoryRepository.countByOwnerIsNull() + 1)));
         return new Post(
                 meta.get("title"),
                 body,

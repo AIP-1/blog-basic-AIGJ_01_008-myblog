@@ -47,6 +47,14 @@ public class Post {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    /** 조회수 (인기 글 기준). 기존 행이 있어도 컬럼이 추가되도록 기본값 0 */
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private long viewCount;
+
+    /** 관리자가 지정한 공지사항 (사이드바 공지 칸에 보인다) */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean notice;
+
     protected Post() {
     }
 
@@ -75,6 +83,14 @@ public class Post {
             this.updatedAt = this.createdAt;
         }
         this.status = newStatus;
+    }
+
+    public void changeNotice(boolean notice) {
+        this.notice = notice;
+    }
+
+    public void increaseViewCount() {
+        this.viewCount++;
     }
 
     public boolean isWrittenBy(String username) {
@@ -131,5 +147,13 @@ public class Post {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public long getViewCount() {
+        return viewCount;
+    }
+
+    public boolean isNotice() {
+        return notice;
     }
 }

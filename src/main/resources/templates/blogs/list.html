@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('회원 블로그 순위')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container narrow">
+    <section class="content">
+        <h1>회원 블로그 순위</h1>
+        <p class="hint">방문이 많은 블로그부터 보여 줘요.
+            회원마다 자기 블로그가 있어요. 마음에 드는 블로그를 구독하면 새 글을 <strong>구독 피드</strong>에서 모아 볼 수 있어요.
+            <span sec:authorize="isAuthenticated()"><a th:href="@{/blog/{u}(u=${#authentication.name})}">내 블로그 가기 →</a></span>
+        </p>
+
+        <p th:if="${#lists.isEmpty(blogs)}" class="empty">아직 공개 글이 있는 블로그가 없어요.</p>
+        <ol class="blog-list">
+            <li th:each="b, it : ${blogs}">
+                <span class="rank" th:classappend="${it.count <= 3} ? 'top'" th:text="${it.count}">1</span>
+                <div class="blog-item">
+                    <a class="title" th:href="@{/blog/{u}(u=${b.owner.username})}" th:text="${b.owner.blogTitle}">블로그</a>
+                    <p class="excerpt" th:if="${!#strings.isEmpty(b.owner.blogIntro)}" th:text="${b.owner.blogIntro}">소개</p>
+                    <div class="meta">
+                        <span th:text="${b.owner.username}">주인</span> ·
+                        방문 <strong th:text="${b.owner.blogVisits}">0</strong> ·
+                        글 <span th:text="${b.postCount}">0</span> ·
+                        최근 글 <time th:datetime="${b.lastPostedAt}" th:title="${@timeAgo.exact(b.lastPostedAt)}" th:text="${@timeAgo.format(b.lastPostedAt)}">1일 전</time>
+                    </div>
+                </div>
+            </li>
+        </ol>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

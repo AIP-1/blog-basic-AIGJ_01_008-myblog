@@ -4,33 +4,64 @@
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
 
-<main class="container layout">
+<div class="container">
+    <nav th:replace="~{fragments/layout :: topMenu}"></nav>
+</div>
+<main class="container layout with-top-menu">
     <aside th:replace="~{fragments/layout :: curriculum}"></aside>
 
     <article class="content">
-        <a class="badge" th:href="@{/(category=${post.category?.id})}" th:text="${post.categoryName}">카테고리</a>
+        <a class="badge" th:if="${post.category?.owner == null}" th:href="@{/(category=${post.category?.id})}"
+           th:text="${post.categoryName}">카테고리</a>
+        <a class="badge" th:unless="${post.category?.owner == null}"
+           th:href="@{/blog/{u}(u=${post.author.username}, category=${post.category.id})}"
+           th:text="${post.categoryName}">카테고리</a>
+        <span class="status-chip notice-chip" th:if="${post.notice}">공지</span>
         <span class="status-chip" th:unless="${post.public}" th:text="${post.status.label}"
               th:classappend="${post.status.name().toLowerCase()}">비공개</span>
         <h1 th:text="${post.title}">제목</h1>
         <div class="meta">
-            <span th:text="${post.author.username}">작성자</span> ·
-            <span th:text="${#temporals.format(post.createdAt, 'yyyy-MM-dd HH:mm')}">날짜</span>
+            <a class="author" th:href="@{/blog/{u}(u=${post.author.username})}" th:text="${post.author.username}">작성자</a> ·
+            <time th:datetime="${post.createdAt}" th:title="${@timeAgo.exact(post.createdAt)}" th:text="${@timeAgo.format(post.createdAt)}">1일 전</time>
             <span th:if="${post.updatedAt.isAfter(post.createdAt)}">(수정됨)</span>
+            · 방문 <span th:text="${post.viewCount}">0</span>
         </div>
 
         <p class="notice-box" th:if="${post.draft}">임시저장된 글이에요. 다른 사람에게는 보이지 않아요.
             <a th:href="@{/posts/{id}/edit(id=${post.id})}">이어서 쓰고 발행하기 →</a></p>
         <p class="notice-box" th:if="${post.status.name() == 'PRIVATE'}">비공개 글이에요. 나와 관리자만 볼 수 있어요.</p>
 
+        <p class="notice" th:if="${message}" th:text="${message}"></p>
         <div th:if="${canEdit}" class="actions">
             <a class="btn" th:href="@{/posts/{id}/edit(id=${post.id})}">수정</a>
             <form th:action="@{/posts/{id}/delete(id=${post.id})}" method="post" class="inline"
                   onsubmit="return confirm('정말 삭제할까요?');">
                 <button type="submit" class="btn btn-danger">삭제</button>
             </form>
+            <form sec:authorize="hasRole('ADMIN')" th:if="${post.public}"
+                  th:action="@{/manage/posts/{id}/notice(id=${post.id})}" method="post" class="inline">
+                <input type="hidden" name="notice" th:value="${!post.notice}">
+                <input type="hidden" name="back" value="true">
+                <button type="submit" class="btn" th:text="${post.notice} ? '공지 내리기' : '📢 공지로 등록'">공지로 등록</button>
+            </form>
         </div>
 
         <div class="markdown" th:utext="${html}">본문</div>
+
+        <div class="like-box" id="like">
+            <form sec:authorize="isAuthenticated()" th:action="@{/posts/{id}/like(id=${post.id})}" method="post"
+                  class="like-form">
+                <button type="submit" class="like-btn" th:classappend="${like.liked} ? 'liked'"
+                        th:attr="aria-pressed=${like.liked}" aria-label="좋아요">
+                    <span class="heart" aria-hidden="true">♥</span>
+                    <span>좋아요</span> <strong class="like-count" th:text="${like.count}">0</strong>
+                </button>
+            </form>
+            <a sec:authorize="!isAuthenticated()" class="like-btn" th:href="@{/login}" title="로그인하고 좋아요 누르기">
+                <span class="heart" aria-hidden="true">♥</span>
+                <span>좋아요</span> <strong th:text="${like.count}">0</strong>
+            </a>
+        </div>
 
         <div class="share" th:if="${post.public}" th:with="shareText=${post.title + ' - ' + (blog?.title ?: 'Java 블로그')}">
             <span class="share-label">공유하기</span>
@@ -73,7 +104,7 @@
                 <li th:each="c : ${post.comments}">
                     <div class="meta">
                         <strong th:text="${c.author.username}">작성자</strong> ·
-                        <span th:text="${#temporals.format(c.createdAt, 'yyyy-MM-dd HH:mm')}">날짜</span>
+                        <time th:datetime="${c.createdAt}" th:title="${@timeAgo.exact(c.createdAt)}" th:text="${@timeAgo.format(c.createdAt)}">1일 전</time>
                         <form sec:authorize="isAuthenticated()"
                               th:if="${c.author.username == #authentication.name or #authorization.expression('hasRole(''ADMIN'')')}"
                               th:action="@{/comments/{id}/delete(id=${c.id})}" method="post" class="inline">
@@ -96,6 +127,33 @@
 </main>
 
 <footer th:replace="~{fragments/layout :: footer}"></footer>
+<script>
+    // 좋아요: 새로고침 없이 바꾼다 (스크립트가 안 되면 폼 전송으로 동작)
+    document.querySelector('.like-form')?.addEventListener('submit', async e => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const button = form.querySelector('.like-btn');
+        button.disabled = true;
+        try {
+            const res = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    [document.querySelector('meta[name=_csrf_header]').content]: document.querySelector('meta[name=_csrf]').content
+                }
+            });
+            if (!res.ok) throw new Error(res.status);
+            const {liked, count} = await res.json();
+            button.classList.toggle('liked', liked);
+            button.setAttribute('aria-pressed', liked);
+            form.querySelector('.like-count').textContent = count;
+        } catch (err) {
+            form.submit();
+        } finally {
+            button.disabled = false;
+        }
+    });
+</script>
 <script th:inline="javascript">
     // Java 코드 블록마다 '실행해보기' 버튼을 붙여 코드 실행기로 보낸다
     const playgroundUrl = /*[[@{/playground}]]*/ '/playground';

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('내 블로그 설정')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container manage-layout">
+    <nav th:replace="~{fragments/layout :: manageNav}"></nav>
+
+    <section class="content">
+        <h1>내 블로그 설정</h1>
+        <p class="hint">내 블로그 주소:
+            <a th:href="@{/blog/{u}(u=${me.username})}" th:text="@{/blog/{u}(u=${me.username})}">/blog/me</a></p>
+        <p class="notice" th:if="${message}" th:text="${message}"></p>
+        <p class="error-box" th:if="${error}" th:text="${error}"></p>
+
+        <form th:action="@{/manage/blog}" method="post" class="form">
+            <label>블로그 이름 <small>(비워 두면 '<span th:text="${me.username}">me</span>의 블로그')</small>
+                <input type="text" name="title" th:value="${me.blogTitle}" maxlength="50">
+            </label>
+            <label>블로그 소개 <small>(내 블로그 사이드바와 회원 블로그 목록에 보여요)</small>
+                <textarea name="intro" rows="4" maxlength="300" th:text="${me.blogIntro}"></textarea>
+            </label>
+            <div class="actions">
+                <button type="submit" class="btn btn-primary">저장</button>
+            </div>
+        </form>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${owner.blogTitle})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<div class="container">
+    <nav class="top-menu">
+        <details class="top-fold">
+            <summary>
+                카테고리
+                <strong th:each="c : ${blogCategories}" th:if="${c.id == category}" th:text="${c.name}">여행</strong>
+                <span th:if="${category == null}" class="meta" th:text="${#lists.size(blogCategories)}">0</span>
+            </summary>
+            <ul class="chip-list">
+                <li th:replace="~{:: blogCategoryItems}"></li>
+            </ul>
+        </details>
+        <script th:replace="~{fragments/layout :: topMenuScript}"></script>
+    </nav>
+</div>
+<main class="container layout with-top-menu">
+    <aside class="sidebar">
+        <form class="side-box side-search" th:action="@{/blog/{u}(u=${owner.username})}" method="get" role="search">
+            <input type="search" name="q" th:value="${q}" placeholder="이 블로그에서 검색" aria-label="이 블로그에서 검색">
+            <button type="submit" class="btn">검색</button>
+        </form>
+
+        <section class="side-box blog-profile">
+            <h3 th:text="${owner.blogTitle}">블로그 이름</h3>
+            <p class="intro" th:text="${owner.blogIntro}">소개</p>
+            <p class="meta">
+                <span th:text="${owner.username}">주인</span> ·
+                방문 <span th:text="${owner.blogVisits}">0</span> ·
+                글 <span th:text="${postCount}">0</span> ·
+                구독자 <span th:text="${subscriberCount}">0</span>
+            </p>
+
+            <a th:if="${isOwner}" class="btn btn-sm" th:href="@{/manage/blog}">블로그 꾸미기</a>
+            <th:block th:unless="${isOwner}">
+                <form sec:authorize="isAuthenticated()" th:unless="${subscribed}"
+                      th:action="@{/blog/{u}/subscribe(u=${owner.username})}" method="post">
+                    <button type="submit" class="btn btn-primary btn-sm">＋ 구독하기</button>
+                </form>
+                <form sec:authorize="isAuthenticated()" th:if="${subscribed}"
+                      th:action="@{/blog/{u}/unsubscribe(u=${owner.username})}" method="post">
+                    <button type="submit" class="btn btn-sm">✓ 구독 중 · 취소</button>
+                </form>
+                <a sec:authorize="!isAuthenticated()" class="btn btn-primary btn-sm" th:href="@{/login}">로그인하고 구독하기</a>
+            </th:block>
+        </section>
+
+        <section class="side-box">
+            <h3>카테고리</h3>
+            <ul class="cat-list blog-cats">
+                <th:block th:fragment="blogCategoryItems">
+                    <li>
+                        <a th:href="@{/blog/{u}(u=${owner.username})}" th:classappend="${category == null} ? 'active'">
+                            전체 글 <span class="meta" th:text="${postCount}">0</span></a>
+                    </li>
+                    <li th:each="c : ${blogCategories}">
+                        <a th:href="@{/blog/{u}(u=${owner.username}, category=${c.id})}"
+                           th:classappend="${category == c.id} ? 'active'">
+                            <span th:text="${c.name}">카테고리</span>
+                            <span class="meta" th:text="${c.postCount}">0</span></a>
+                    </li>
+                    <li th:if="${isOwner}">
+                        <a class="more" th:href="@{/manage/blog/categories}">＋ 내 카테고리 관리</a></li>
+                </th:block>
+            </ul>
+        </section>
+    </aside>
+
+    <section class="content">
+        <p class="notice" th:if="${message}" th:text="${message}"></p>
+        <p class="error-box" th:if="${error}" th:text="${error}"></p>
+        <h1 th:text="${owner.blogTitle}">블로그 이름</h1>
+        <h2 class="cat-heading" th:each="c : ${blogCategories}" th:if="${c.id == category}">
+            <span th:text="${c.name}">카테고리</span> <span class="meta" th:text="${c.postCount} + '개의 글'">3개의 글</span>
+        </h2>
+
+        <p class="hint search-result" th:if="${!#strings.isEmpty(q)}">
+            이 블로그에서 '<strong th:text="${q}">검색어</strong>' 검색 결과 <span th:text="${posts.totalElements}">0</span>건
+            · 제목 → 내용 순
+            <a th:href="@{/blog/{u}(u=${owner.username})}">검색 지우기</a> ·
+            <a th:href="@{/(q=${q})}">사이트 전체에서 찾기 →</a>
+        </p>
+
+        <th:block th:replace="~{fragments/layout :: postList(${posts})}"></th:block>
+
+        <nav class="pagination" th:if="${posts.totalPages > 1}">
+            <a th:each="i : ${#numbers.sequence(0, posts.totalPages - 1)}"
+               th:href="@{/blog/{u}(u=${owner.username}, page=${i}, category=${category}, q=${#strings.isEmpty(q) ? null : q})}"
+               th:text="${i + 1}"
+               th:classappend="${i == posts.number} ? 'current'">1</a>
+        </nav>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

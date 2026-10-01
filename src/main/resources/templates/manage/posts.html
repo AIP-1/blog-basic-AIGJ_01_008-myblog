@@ -35,6 +35,7 @@
             <tbody>
             <tr th:each="p : ${posts}">
                 <td class="col-title">
+                    <span class="status-chip notice-chip" th:if="${p.notice}">공지</span>
                     <a th:href="@{/posts/{id}(id=${p.id})}" th:text="${p.title}">제목</a>
                     <span class="meta" th:if="${isAdmin}" th:text="${p.author.username}">작성자</span>
                 </td>
@@ -50,6 +51,12 @@
                         <input type="hidden" name="status" th:value="${p.public} ? 'PRIVATE' : 'PUBLIC'">
                         <input type="hidden" name="filter" th:value="${status}">
                         <button type="submit" class="btn btn-sm" th:text="${p.public} ? '비공개로' : '공개로'">비공개로</button>
+                    </form>
+                    <form th:if="${isAdmin and p.public}" th:action="@{/manage/posts/{id}/notice(id=${p.id})}"
+                          method="post" class="inline">
+                        <input type="hidden" name="notice" th:value="${!p.notice}">
+                        <input type="hidden" name="filter" th:value="${status}">
+                        <button type="submit" class="btn btn-sm" th:text="${p.notice} ? '공지 해제' : '공지 등록'">공지 등록</button>
                     </form>
                     <form th:action="@{/manage/posts/{id}/delete(id=${p.id})}" method="post" class="inline"
                           onsubmit="return confirm('정말 삭제할까요? 되돌릴 수 없어요.');">

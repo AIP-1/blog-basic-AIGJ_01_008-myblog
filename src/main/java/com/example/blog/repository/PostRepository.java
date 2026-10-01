@@ -15,18 +15,112 @@ import java.util.Optional;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
 
-    /** 공개 글 검색. categoryId 가 null 이면 전체, keyword 가 빈 문자열이면 검색 안 함 */
-    @Query("""
+    /**
+     * 공개 글 목록·검색. categoryId 가 null 이면 전체, keyword 가 빈 문자열이면 검색 안 함.
+     * 검색할 때는 작성자 아이디 → 제목 → 내용 순으로 일치한 글을 먼저 보여 주고, 같은 순위 안에서는 최신순.
+     * keyword 는 소문자로 넘긴다. 정렬이 쿼리에 들어 있으므로 Pageable 에는 정렬을 넣지 않는다.
+     */
+    @Query(value = """
             select p from Post p
             where p.status = com.example.blog.domain.PostStatus.PUBLIC
               and (:categoryId is null or p.category.id = :categoryId)
               and (:keyword = ''
-                   or lower(p.title) like lower(concat('%', :keyword, '%'))
-                   or lower(p.content) like lower(concat('%', :keyword, '%')))
+                   or lower(p.author.username) like concat('%', :keyword, '%')
+                   or lower(p.title) like concat('%', :keyword, '%')
+                   or lower(p.content) like concat('%', :keyword, '%'))
+            order by
+              case
+                when :keyword = '' then 0
+                when lower(p.author.username) like concat('%', :keyword, '%') then 0
+                when lower(p.title) like concat('%', :keyword, '%') then 1
+                else 2
+              end,
+              p.createdAt desc, p.id desc
+            """,
+            countQuery = """
+            select count(p) from Post p
+            where p.status = com.example.blog.domain.PostStatus.PUBLIC
+              and (:categoryId is null or p.category.id = :categoryId)
+              and (:keyword = ''
+                   or lower(p.author.username) like concat('%', :keyword, '%')
+                   or lower(p.title) like concat('%', :keyword, '%')
+                   or lower(p.content) like concat('%', :keyword, '%'))
             """)
     Page<Post> searchPublic(@Param("categoryId") Long categoryId,
                             @Param("keyword") String keyword,
                             Pageable pageable);
+
+    /**
+     * 개인 블로그: 한 회원의 공개 글. categoryId 가 null 이면 전체, 0 이면 미분류, keyword(소문자)가 빈 문자열이면 검색 안 함.
+     * 검색할 때는 제목 → 내용 순으로 일치한 글을 먼저, 같은 순위 안에서는 최신순.
+     */
+    @Query(value = """
+            select p from Post p
+            where p.status = com.example.blog.domain.PostStatus.PUBLIC
+              and p.author.username = :username
+              and (:categoryId is null
+                   or (:categoryId = 0 and p.category is null)
+                   or p.category.id = :categoryId)
+              and (:keyword = ''
+                   or lower(p.title) like concat('%', :keyword, '%')
+                   or lower(p.content) like concat('%', :keyword, '%'))
+            order by
+              case
+                when :keyword = '' then 0
+                when lower(p.title) like concat('%', :keyword, '%') then 0
+                else 1
+              end,
+              p.createdAt desc, p.id desc
+            """,
+            countQuery = """
+            select count(p) from Post p
+            where p.status = com.example.blog.domain.PostStatus.PUBLIC
+              and p.author.username = :username
+              and (:categoryId is null
+                   or (:categoryId = 0 and p.category is null)
+                   or p.category.id = :categoryId)
+              and (:keyword = ''
+                   or lower(p.title) like concat('%', :keyword, '%')
+                   or lower(p.content) like concat('%', :keyword, '%'))
+            """)
+    Page<Post> findPublicByAuthor(@Param("username") String username,
+                                  @Param("categoryId") Long categoryId,
+                                  @Param("keyword") String keyword,
+                                  Pageable pageable);
+
+    /** 구독 피드: 구독한 블로그들의 공개 글 */
+    @Query("""
+            select p from Post p
+            where p.status = com.example.blog.domain.PostStatus.PUBLIC
+              and p.author in (select s.blogOwner from Subscription s where s.subscriber.username = :username)
+            """)
+    Page<Post> findSubscribedFeed(@Param("username") String username, Pageable pageable);
+
+    /** 회원 블로그 순위 (공개 글이 하나라도 있는 회원, 방문 많은 순 → 같으면 최근 글 순) */
+    @Query("""
+            select new com.example.blog.repository.BlogSummary(p.author, count(p), max(p.createdAt))
+            from Post p
+            where p.status = com.example.blog.domain.PostStatus.PUBLIC
+            group by p.author
+            order by p.author.blogVisits desc, max(p.createdAt) desc
+            """)
+    List<BlogSummary> findBlogSummaries();
+
+    long countByAuthorUsernameAndStatus(String username, PostStatus status);
+
+    /** 한 회원의 공개 글 수를 카테고리별로: [카테고리 id(미분류면 null), 글 수] */
+    @Query("""
+            select c.id, count(p) from Post p left join p.category c
+            where p.status = com.example.blog.domain.PostStatus.PUBLIC and p.author.username = :username
+            group by c.id
+            """)
+    List<Object[]> countPublicByCategory(@Param("username") String username);
+
+    /** 사이드바 공지사항 (최신순) */
+    List<Post> findTop5ByNoticeTrueAndStatusOrderByCreatedAtDesc(PostStatus status);
+
+    /** 인기 글: 조회수 많은 순 → 같으면 최신순 */
+    List<Post> findTop5ByStatusOrderByViewCountDescCreatedAtDesc(PostStatus status);
 
     /** 관리 페이지 목록. username 이 null 이면 모든 사람의 글(관리자), status 가 null 이면 전체 상태 */
     @Query("""

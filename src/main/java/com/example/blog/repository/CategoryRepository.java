@@ -8,9 +8,15 @@ import java.util.Optional;
 
 public interface CategoryRepository extends JpaRepository<Category, Long> {
 
-    List<Category> findAllByOrderBySortOrderAscIdAsc();
+    /** 공용 카테고리 */
+    List<Category> findByOwnerIsNullOrderBySortOrderAscIdAsc();
 
-    Optional<Category> findByName(String name);
+    Optional<Category> findByOwnerIsNullAndName(String name);
 
-    boolean existsByName(String name);
+    long countByOwnerIsNull();
+
+    /** 개인 블로그 카테고리 */
+    List<Category> findByOwnerUsernameOrderBySortOrderAscIdAsc(String username);
+
+    Optional<Category> findByOwnerUsernameAndName(String username, String name);
 }

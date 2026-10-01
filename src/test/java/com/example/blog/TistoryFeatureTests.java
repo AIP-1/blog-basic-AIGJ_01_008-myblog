@@ -169,7 +169,7 @@ class TistoryFeatureTests {
         mvc.perform(post("/manage/categories").with(csrf()).param("name", "스프링"))
                 .andExpect(flash().attribute("error", "이미 있는 카테고리입니다: 스프링"));
 
-        Long id = categoryRepository.findByName("스프링").orElseThrow().getId();
+        Long id = categoryRepository.findByOwnerIsNullAndName("스프링").orElseThrow().getId();
         mvc.perform(post("/manage/categories/" + id + "/rename").with(csrf()).param("name", "Spring Boot"))
                 .andExpect(status().is3xxRedirection());
         mvc.perform(get("/")).andExpect(content().string(containsString("Spring Boot")));
@@ -186,11 +186,11 @@ class TistoryFeatureTests {
     @Test
     @WithMockUser(username = "admin", roles = "ADMIN")
     void 관리자는_카테고리_순서를_바꾼다() throws Exception {
-        var before = categoryRepository.findAllByOrderBySortOrderAscIdAsc();
+        var before = categoryRepository.findByOwnerIsNullOrderBySortOrderAscIdAsc();
         Long second = before.get(1).getId();
         mvc.perform(post("/manage/categories/" + second + "/move").with(csrf()).param("direction", "up"))
                 .andExpect(status().is3xxRedirection());
-        assertThat(categoryRepository.findAllByOrderBySortOrderAscIdAsc().get(0).getId()).isEqualTo(second);
+        assertThat(categoryRepository.findByOwnerIsNullOrderBySortOrderAscIdAsc().get(0).getId()).isEqualTo(second);
         // 원래대로
         mvc.perform(post("/manage/categories/" + second + "/move").with(csrf()).param("direction", "down"));
     }

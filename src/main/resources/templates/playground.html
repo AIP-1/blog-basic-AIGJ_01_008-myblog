@@ -3,6 +3,7 @@
 <head th:replace="~{fragments/layout :: head('코드 실행기')}"></head>
 <body>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
 <header th:replace="~{fragments/layout :: header}"></header>
 
 <main class="container playground">
@@ -104,6 +105,7 @@ System.out.println(s.length());`
 
     const editor = CodeMirror.fromTextArea(document.getElementById('code'), {
         mode: 'text/x-java',
+        theme: blogTheme.current() === 'dark' ? 'material-darker' : 'default',
         lineNumbers: true,
         indentUnit: 4,
         tabSize: 4,
@@ -115,6 +117,8 @@ System.out.println(s.length());`
             Tab: cm => cm.replaceSelection('    ')
         }
     });
+    document.addEventListener('themechange', e =>
+        editor.setOption('theme', e.detail === 'dark' ? 'material-darker' : 'default'));
 
     // 강좌 글의 '실행해보기' 버튼에서 넘어온 코드가 있으면 불러온다
     let initial = EXAMPLES.hello;
