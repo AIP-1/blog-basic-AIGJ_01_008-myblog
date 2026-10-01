@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('차단 관리')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container manage-layout">
+    <nav th:replace="~{fragments/layout :: manageNav}"></nav>
+
+    <section class="content">
+        <h1>차단 관리</h1>
+        <p class="hint">차단한 사람의 글은 목록에서 보이지 않고 댓글은 접혀 보여요. 차단당한 사람은 내 글에 댓글을 달거나 내 블로그를 구독할 수 없어요.
+            차단은 상대 블로그의 <strong>🚫 차단하기</strong>에서 할 수 있어요.</p>
+        <p class="notice" th:if="${message}" th:text="${message}"></p>
+
+        <p th:if="${#lists.isEmpty(blocks)}" class="empty">차단한 사람이 없어요.</p>
+
+        <table class="manage-table" th:unless="${#lists.isEmpty(blocks)}">
+            <thead>
+            <tr>
+                <th>아이디</th>
+                <th>차단한 날</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="b : ${blocks}">
+                <td class="col-title">
+                    <a th:href="@{/blog/{u}(u=${b.blocked.username})}" th:text="${b.blocked.username}">아이디</a>
+                </td>
+                <td class="meta" th:text="${#temporals.format(b.createdAt, 'yyyy-MM-dd')}">날짜</td>
+                <td class="col-actions">
+                    <form th:action="@{/manage/blocks/{u}/delete(u=${b.blocked.username})}" method="post" class="inline">
+                        <button type="submit" class="btn btn-sm">차단 풀기</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

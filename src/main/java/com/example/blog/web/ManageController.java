@@ -3,6 +3,7 @@ package com.example.blog.web;
 import com.example.blog.domain.Category;
 import com.example.blog.domain.PostStatus;
 import com.example.blog.domain.User;
+import com.example.blog.service.BlockService;
 import com.example.blog.service.BlogService;
 import com.example.blog.service.BlogSettingsService;
 import com.example.blog.service.CategoryService;
@@ -32,15 +33,17 @@ public class ManageController {
     private final BlogSettingsService blogSettingsService;
     private final BlogService blogService;
     private final UserService userService;
+    private final BlockService blockService;
 
     public ManageController(PostService postService, CategoryService categoryService,
                             BlogSettingsService blogSettingsService, BlogService blogService,
-                            UserService userService) {
+                            UserService userService, BlockService blockService) {
         this.postService = postService;
         this.categoryService = categoryService;
         this.blogSettingsService = blogSettingsService;
         this.blogService = blogService;
         this.userService = userService;
+        this.blockService = blockService;
     }
 
     @ModelAttribute("isAdmin")
@@ -52,13 +55,15 @@ public class ManageController {
 
     @GetMapping
     public String posts(@RequestParam(required = false) PostStatus status,
+                        @RequestParam(defaultValue = "") String q,
                         @RequestParam(defaultValue = "0") int page,
                         Authentication auth, Model model) {
         model.addAttribute("menu", "posts");
         model.addAttribute("status", status);
+        model.addAttribute("q", q);
         model.addAttribute("statuses", PostStatus.values());
-        model.addAttribute("posts", postService.manageList(status, page, auth));
-        Map<String, Long> counts = postService.manageCounts(auth);
+        model.addAttribute("posts", postService.manageList(status, q, page, auth));
+        Map<String, Long> counts = postService.manageCounts(q, auth);
         model.addAttribute("counts", counts);
         model.addAttribute("total", counts.values().stream().mapToLong(Long::longValue).sum());
         return "manage/posts";
@@ -67,16 +72,18 @@ public class ManageController {
     @PostMapping("/posts/{id}/status")
     public String changeStatus(@PathVariable Long id, @RequestParam PostStatus status,
                                @RequestParam(required = false) PostStatus filter,
+                               @RequestParam(defaultValue = "") String q,
                                Authentication auth, RedirectAttributes redirect) {
         postService.changeStatus(id, status, auth);
         redirect.addFlashAttribute("message", "'" + status.getLabel() + "'(으)로 바꿨습니다.");
-        return filter == null ? "redirect:/manage" : "redirect:/manage?status=" + filter;
+        return backToPosts(filter, q, redirect);
     }
 
     /** 공지 등록/해제 (관리자). back 이 있으면 그 글 화면으로 돌아간다 */
     @PostMapping("/posts/{id}/notice")
     public String changeNotice(@PathVariable Long id, @RequestParam boolean notice,
                                @RequestParam(required = false) PostStatus filter,
+                               @RequestParam(defaultValue = "") String q,
                                @RequestParam(defaultValue = "false") boolean back,
                                Authentication auth, RedirectAttributes redirect) {
         postService.changeNotice(id, notice, auth);
@@ -84,15 +91,27 @@ public class ManageController {
         if (back) {
             return "redirect:/posts/" + id;
         }
-        return filter == null ? "redirect:/manage" : "redirect:/manage?status=" + filter;
+        return backToPosts(filter, q, redirect);
     }
 
     @PostMapping("/posts/{id}/delete")
     public String deletePost(@PathVariable Long id, @RequestParam(required = false) PostStatus filter,
+                             @RequestParam(defaultValue = "") String q,
                              Authentication auth, RedirectAttributes redirect) {
         postService.delete(id, auth);
         redirect.addFlashAttribute("message", "글을 삭제했습니다.");
-        return filter == null ? "redirect:/manage" : "redirect:/manage?status=" + filter;
+        return backToPosts(filter, q, redirect);
+    }
+
+    /** 글 관리 목록으로 돌아가되 보고 있던 탭(상태)과 검색어를 유지한다 */
+    private String backToPosts(PostStatus filter, String q, RedirectAttributes redirect) {
+        if (filter != null) {
+            redirect.addAttribute("status", filter);
+        }
+        if (!q.isBlank()) {
+            redirect.addAttribute("q", q);
+        }
+        return "redirect:/manage";
     }
 
     // ===== 카테고리 관리: 공용(관리자) / 내 블로그(모든 사용자) =====
@@ -202,6 +221,55 @@ public class ManageController {
         blogService.unsubscribe(auth.getName(), username);
         redirect.addFlashAttribute("message", username + " 님의 블로그 구독을 취소했습니다.");
         return "redirect:/manage/subscriptions";
+    }
+
+    // ===== 차단 관리 (모든 사용자) =====
+
+    @GetMapping("/blocks")
+    public String blocks(Authentication auth, Model model) {
+        model.addAttribute("menu", "blocks");
+        model.addAttribute("blocks", blockService.blocks(auth.getName()));
+        return "manage/blocks";
+    }
+
+    @PostMapping("/blocks/{username}/delete")
+    public String unblock(@PathVariable String username, Authentication auth, RedirectAttributes redirect) {
+        blockService.unblock(auth.getName(), username);
+        redirect.addFlashAttribute("message", username + " 님의 차단을 풀었습니다.");
+        return "redirect:/manage/blocks";
+    }
+
+    // ===== 회원 관리 (관리자) =====
+
+    @GetMapping("/users")
+    public String users(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page,
+                        Model model) {
+        model.addAttribute("menu", "users");
+        model.addAttribute("q", q);
+        model.addAttribute("users", userService.list(q, page));
+        return "manage/users";
+    }
+
+    @PostMapping("/users/{username}/ban")
+    public String ban(@PathVariable String username, @RequestParam(defaultValue = "") String reason,
+                      @RequestParam(defaultValue = "") String q, RedirectAttributes redirect) {
+        try {
+            userService.ban(username, reason);
+            redirect.addFlashAttribute("message", username + " 님의 이용을 정지했습니다.");
+        } catch (IllegalArgumentException e) {
+            redirect.addFlashAttribute("error", e.getMessage());
+        }
+        redirect.addAttribute("q", q);
+        return "redirect:/manage/users";
+    }
+
+    @PostMapping("/users/{username}/unban")
+    public String unban(@PathVariable String username, @RequestParam(defaultValue = "") String q,
+                        RedirectAttributes redirect) {
+        userService.unban(username);
+        redirect.addFlashAttribute("message", username + " 님의 정지를 풀었습니다.");
+        redirect.addAttribute("q", q);
+        return "redirect:/manage/users";
     }
 
     // ===== 사이트 설정 (관리자) =====

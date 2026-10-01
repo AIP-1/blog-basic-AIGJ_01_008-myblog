@@ -1,6 +1,7 @@
 package com.example.blog.web;
 
 import com.example.blog.domain.User;
+import com.example.blog.service.BlockService;
 import com.example.blog.service.BlogService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.security.core.Authentication;
@@ -15,10 +16,12 @@ public class BlogController {
 
     private final BlogService blogService;
     private final BlogVisits blogVisits;
+    private final BlockService blockService;
 
-    public BlogController(BlogService blogService, BlogVisits blogVisits) {
+    public BlogController(BlogService blogService, BlogVisits blogVisits, BlockService blockService) {
         this.blogService = blogService;
         this.blogVisits = blogVisits;
+        this.blockService = blockService;
     }
 
     @GetMapping("/blogs")
@@ -46,6 +49,7 @@ public class BlogController {
         model.addAttribute("subscriberCount", blogService.subscriberCount(owner));
         model.addAttribute("subscribed", blogService.isSubscribed(me, username));
         model.addAttribute("isOwner", username.equals(me));
+        model.addAttribute("blockedByMe", blockService.isBlocked(me, username));
         return "blogs/home";
     }
 
@@ -64,6 +68,24 @@ public class BlogController {
     public String unsubscribe(@PathVariable String username, Authentication auth, RedirectAttributes redirect) {
         blogService.unsubscribe(auth.getName(), username);
         redirect.addFlashAttribute("message", "구독을 취소했습니다.");
+        return "redirect:/blog/" + username;
+    }
+
+    @PostMapping("/blog/{username}/block")
+    public String block(@PathVariable String username, Authentication auth, RedirectAttributes redirect) {
+        try {
+            blockService.block(auth.getName(), username);
+            redirect.addFlashAttribute("message", username + " 님을 차단했습니다. 이 사람의 글과 댓글이 보이지 않아요.");
+        } catch (IllegalArgumentException e) {
+            redirect.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/blog/" + username;
+    }
+
+    @PostMapping("/blog/{username}/unblock")
+    public String unblock(@PathVariable String username, Authentication auth, RedirectAttributes redirect) {
+        blockService.unblock(auth.getName(), username);
+        redirect.addFlashAttribute("message", username + " 님의 차단을 풀었습니다.");
         return "redirect:/blog/" + username;
     }
 

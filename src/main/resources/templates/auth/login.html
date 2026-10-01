@@ -8,6 +8,7 @@
     <h1>로그인</h1>
     <p class="notice" th:if="${message}" th:text="${message}"></p>
     <p class="error" th:if="${param.error}">아이디 또는 비밀번호가 올바르지 않습니다.</p>
+    <p class="error-box" th:if="${param.banned}">이용이 정지된 계정입니다. 문의가 있으면 관리자에게 연락해 주세요.</p>
 
     <form th:action="@{/login}" method="post" class="form">
         <label>아이디 <input type="text" name="username" required autofocus></label>

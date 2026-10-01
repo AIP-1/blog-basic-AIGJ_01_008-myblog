@@ -25,8 +25,11 @@
             <time th:datetime="${post.createdAt}" th:title="${@timeAgo.exact(post.createdAt)}" th:text="${@timeAgo.format(post.createdAt)}">1일 전</time>
             <span th:if="${post.updatedAt.isAfter(post.createdAt)}">(수정됨)</span>
             · 방문 <span th:text="${post.viewCount}">0</span>
+            · <a class="likes" href="#like" title="좋아요">♥ <span th:text="${like.count}">0</span></a>
         </div>
 
+        <p class="notice-box" th:if="${authorBlocked}">차단한 사용자의 글이에요.
+            <a th:href="@{/blog/{u}(u=${post.author.username})}">차단 풀기 →</a></p>
         <p class="notice-box" th:if="${post.draft}">임시저장된 글이에요. 다른 사람에게는 보이지 않아요.
             <a th:href="@{/posts/{id}/edit(id=${post.id})}">이어서 쓰고 발행하기 →</a></p>
         <p class="notice-box" th:if="${post.status.name() == 'PRIVATE'}">비공개 글이에요. 나와 관리자만 볼 수 있어요.</p>
@@ -99,21 +102,54 @@
         </nav>
 
         <section id="comments" class="comments">
-            <h3>댓글 <span th:text="${post.comments.size()}">0</span></h3>
+            <h3>댓글 <span th:text="${post.commentCount}">0</span></h3>
+            <p class="error-box" th:if="${commentError}" th:text="${commentError}"></p>
             <ul>
-                <li th:each="c : ${post.comments}">
-                    <div class="meta">
-                        <strong th:text="${c.author.username}">작성자</strong> ·
-                        <time th:datetime="${c.createdAt}" th:title="${@timeAgo.exact(c.createdAt)}" th:text="${@timeAgo.format(c.createdAt)}">1일 전</time>
-                        <form sec:authorize="isAuthenticated()"
-                              th:if="${c.author.username == #authentication.name or #authorization.expression('hasRole(''ADMIN'')')}"
-                              th:action="@{/comments/{id}/delete(id=${c.id})}" method="post" class="inline">
-                            <button type="submit" class="link">삭제</button>
-                        </form>
-                    </div>
-                    <p th:text="${c.content}">댓글 내용</p>
+                <li th:each="c : ${post.topComments}" th:id="'comment-' + ${c.id}">
+                    <div th:replace="~{:: commentBody(${c})}"></div>
+                    <ul class="replies" th:unless="${#lists.isEmpty(c.replies)}">
+                        <li th:each="r : ${c.replies}" th:id="'comment-' + ${r.id}">
+                            <div th:replace="~{:: commentBody(${r})}"></div>
+                        </li>
+                    </ul>
                 </li>
             </ul>
+
+            <!-- 댓글 한 개: 작성자·시간·삭제, 내용, 답글 쓰기 (답글에 답글을 달면 원 댓글 아래에 '@아이디'로 붙는다) -->
+            <th:block th:if="false">
+                <div th:fragment="commentBody(c)" class="comment-body">
+                    <th:block th:if="${c.deleted}">
+                        <p class="deleted">삭제된 댓글입니다.</p>
+                    </th:block>
+                    <th:block th:if="${!c.deleted and blockedIds.contains(c.author.id)}">
+                        <p class="deleted">차단한 사용자의 댓글입니다.</p>
+                    </th:block>
+                    <th:block th:unless="${c.deleted or blockedIds.contains(c.author.id)}">
+                        <div class="meta">
+                            <span class="reply-mark" th:if="${c.reply}">↳</span>
+                            <strong th:text="${c.author.username}">작성자</strong> ·
+                            <time th:datetime="${c.createdAt}" th:title="${@timeAgo.exact(c.createdAt)}" th:text="${@timeAgo.format(c.createdAt)}">1일 전</time>
+                            <form sec:authorize="isAuthenticated()"
+                                  th:if="${c.author.username == #authentication.name or #authorization.expression('hasRole(''ADMIN'')')}"
+                                  th:action="@{/comments/{id}/delete(id=${c.id})}" method="post" class="inline"
+                                  onsubmit="return confirm('댓글을 삭제할까요?');">
+                                <button type="submit" class="link">삭제</button>
+                            </form>
+                        </div>
+                        <p th:text="${c.content}">댓글 내용</p>
+                        <details class="reply-toggle" sec:authorize="isAuthenticated()">
+                            <summary>답글</summary>
+                            <form th:action="@{/posts/{id}/comments(id=${post.id})}" method="post" class="comment-form">
+                                <input type="hidden" name="parentId" th:value="${c.id}">
+                                <textarea name="content" rows="2" maxlength="1000" required
+                                          th:placeholder="${c.author.username} + ' 님에게 답글'"
+                                          th:text="${c.reply} ? '@' + ${c.author.username} + ' ' : ''"></textarea>
+                                <button type="submit" class="btn btn-primary btn-sm">답글 등록</button>
+                            </form>
+                        </details>
+                    </th:block>
+                </div>
+            </th:block>
             <form sec:authorize="isAuthenticated()" th:action="@{/posts/{id}/comments(id=${post.id})}" method="post"
                   class="comment-form">
                 <textarea name="content" rows="3" maxlength="1000" placeholder="댓글을 입력하세요" required></textarea>
@@ -147,6 +183,7 @@
             button.classList.toggle('liked', liked);
             button.setAttribute('aria-pressed', liked);
             form.querySelector('.like-count').textContent = count;
+            document.querySelector('.meta a.likes span').textContent = count;
         } catch (err) {
             form.submit();
         } finally {

@@ -75,6 +75,30 @@
             <a sec:authorize="isAuthenticated()" class="btn btn-primary" th:href="@{/posts/new}">글쓰기</a>
             <a sec:authorize="isAuthenticated()" class="who" th:href="@{/blog/{u}(u=${#authentication.name})}"
                title="내 블로그" sec:authentication="name">user</a>
+            <!-- 🔔 알림: 누르면 최근 알림이 펼쳐지고, 알림을 누르면 그 댓글로 이동하며 읽음 처리 -->
+            <details class="noti" sec:authorize="isAuthenticated()">
+                <summary class="btn noti-bell" aria-label="알림">
+                    🔔<span class="noti-badge" th:if="${unreadCount != null and unreadCount > 0}"
+                           th:text="${unreadCount > 99} ? '99+' : ${unreadCount}">3</span>
+                </summary>
+                <div class="noti-panel">
+                    <div class="noti-head">
+                        <strong>알림</strong>
+                        <form th:if="${unreadCount != null and unreadCount > 0}" th:action="@{/notifications/read-all}"
+                              method="post" class="inline">
+                            <button type="submit" class="link">모두 읽음</button>
+                        </form>
+                    </div>
+                    <ul class="noti-list">
+                        <th:block th:each="n : ${recentNotifications}">
+                            <li th:replace="~{fragments/layout :: notiItem(${n})}"></li>
+                        </th:block>
+                    </ul>
+                    <p th:if="${#lists.isEmpty(recentNotifications)}" class="meta noti-empty">
+                        아직 알림이 없어요.<br>내 글에 댓글이나 내 댓글에 답글이 달리면 여기에 알려 드려요.</p>
+                    <a class="noti-all" th:href="@{/notifications}">알림 전체 보기 →</a>
+                </div>
+            </details>
             <form sec:authorize="isAuthenticated()" th:action="@{/logout}" method="post" class="inline">
                 <button type="submit" class="btn">로그아웃</button>
             </form>
@@ -150,6 +174,62 @@
         </p>
     </section>
 
+    <!-- 달력: 글을 쓴 날은 표시되고, 누르면 그날 쓴 글 목록으로. 이전/다음 달은 새로고침 없이 바꾼다 -->
+    <section class="side-box calendar" th:if="${popularPosts != null}"
+             th:attr="data-month=${date != null} ? ${#temporals.format(date, 'yyyy-MM')} : '',
+                      data-selected=${date != null} ? ${date} : ''">
+        <div class="cal-head">
+            <button type="button" class="cal-nav" data-step="-1" aria-label="이전 달">‹</button>
+            <h3 class="cal-title">달력</h3>
+            <button type="button" class="cal-nav" data-step="1" aria-label="다음 달">›</button>
+        </div>
+        <div class="cal-grid" role="grid"></div>
+        <script>
+            (() => {
+                const box = document.currentScript.closest('.calendar');
+                const grid = box.querySelector('.cal-grid');
+                const title = box.querySelector('.cal-title');
+                const pad = n => String(n).padStart(2, '0');
+                const today = new Date();
+                const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+                let [year, month] = (box.dataset.month || `${today.getFullYear()}-${today.getMonth() + 1}`)
+                    .split('-').map(Number);
+
+                async function render() {
+                    title.textContent = `${year}년 ${month}월`;
+                    let days = {};
+                    try {
+                        const res = await fetch(`/calendar?month=${year}-${pad(month)}`);
+                        if (res.ok) days = (await res.json()).days;
+                    } catch (e) { /* 글 표시 없이 달력만 */ }
+                    const first = new Date(year, month - 1, 1).getDay();
+                    const last = new Date(year, month, 0).getDate();
+                    const cells = ['일', '월', '화', '수', '목', '금', '토']
+                        .map((d, i) => `<span class="cal-week${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}">${d}</span>`);
+                    for (let i = 0; i < first; i++) cells.push('<span></span>');
+                    for (let d = 1; d <= last; d++) {
+                        const key = `${year}-${pad(month)}-${pad(d)}`;
+                        const weekday = (first + d - 1) % 7;
+                        const cls = ['cal-day', weekday === 0 ? 'sun' : weekday === 6 ? 'sat' : '',
+                            key === todayKey ? 'today' : '', key === box.dataset.selected ? 'selected' : ''].join(' ');
+                        cells.push(days[d]
+                            ? `<a class="${cls} has-post" href="/?date=${key}" title="글 ${days[d]}개">${d}</a>`
+                            : `<span class="${cls}">${d}</span>`);
+                    }
+                    grid.innerHTML = cells.join('');
+                }
+
+                box.querySelectorAll('.cal-nav').forEach(b => b.addEventListener('click', () => {
+                    month += Number(b.dataset.step);
+                    if (month < 1) { month = 12; year--; }
+                    if (month > 12) { month = 1; year++; }
+                    render();
+                }));
+                render();
+            })();
+        </script>
+    </section>
+
     <!-- 블로그 소개는 사이드바 맨 아래, 위쪽에 경계선 -->
     <section class="side-box blog-about" th:if="${blog != null}">
         <h3 th:text="${blog.title}">블로그 이름</h3>
@@ -206,6 +286,17 @@
     </script>
 </nav>
 
+<!-- 알림 한 줄 (상단 펼침 목록과 알림 페이지에서 함께 쓴다) -->
+<li th:fragment="notiItem(n)" th:classappend="${n.read} ? '' : 'unread'">
+    <a th:href="@{/notifications/{id}(id=${n.id})}">
+        <span class="noti-text"><strong th:text="${n.actor.username}">bob</strong><span th:text="${n.type.message}">님이 …</span></span>
+        <span class="noti-post" th:text="${n.post.title}">글 제목</span>
+        <span class="noti-snippet" th:text="${n.comment.deleted} ? '(삭제된 댓글)' : ${#strings.abbreviate(n.comment.content, 60)}">댓글 내용</span>
+        <time class="meta" th:datetime="${n.createdAt}" th:title="${@timeAgo.exact(n.createdAt)}"
+              th:text="${@timeAgo.format(n.createdAt)}">방금 전</time>
+    </a>
+</li>
+
 <nav th:fragment="manageNav" class="manage-nav">
     <h3>블로그 관리</h3>
     <a th:href="@{/posts/new}" class="btn btn-primary manage-write">✏️ 글쓰기</a>
@@ -213,8 +304,10 @@
     <a th:href="@{/manage/blog/categories}" th:classappend="${menu == 'myCategories'} ? 'active'">내 카테고리</a>
     <a th:href="@{/manage/blog}" th:classappend="${menu == 'myBlog'} ? 'active'">내 블로그 설정</a>
     <a th:href="@{/manage/subscriptions}" th:classappend="${menu == 'subscriptions'} ? 'active'">구독 관리</a>
+    <a th:href="@{/manage/blocks}" th:classappend="${menu == 'blocks'} ? 'active'">차단 관리</a>
     <th:block th:if="${isAdmin}">
         <h3 class="manage-sub">사이트 관리</h3>
+        <a th:href="@{/manage/users}" th:classappend="${menu == 'users'} ? 'active'">회원 관리</a>
         <a th:href="@{/manage/categories}" th:classappend="${menu == 'categories'} ? 'active'">공용 카테고리</a>
         <a th:href="@{/manage/settings}" th:classappend="${menu == 'settings'} ? 'active'">사이트 설정</a>
     </th:block>
@@ -232,7 +325,8 @@
                 <div class="meta">
                     <a class="author" th:href="@{/blog/{u}(u=${p.author.username})}" th:text="${p.author.username}">작성자</a> ·
                     <time th:datetime="${p.createdAt}" th:title="${@timeAgo.exact(p.createdAt)}" th:text="${@timeAgo.format(p.createdAt)}">1일 전</time> ·
-                    방문 <span th:text="${p.viewCount}">0</span>
+                    방문 <span th:text="${p.viewCount}">0</span> ·
+                    <span class="likes" title="좋아요">♥ <span th:text="${p.likeCount}">0</span></span>
                 </div>
             </div>
             <a th:if="${thumb != null}" class="thumb" th:href="@{/posts/{id}(id=${p.id})}">
@@ -247,6 +341,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
     <script>hljs.highlightAll();</script>
+    <script>
+        // 알림 패널: 바깥을 누르면 닫는다
+        document.addEventListener('click', e => {
+            const noti = document.querySelector('.noti[open]');
+            if (noti && !noti.contains(e.target)) noti.open = false;
+        });
+    </script>
 </footer>
 </body>
 </html>

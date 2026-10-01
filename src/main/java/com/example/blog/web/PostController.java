@@ -4,12 +4,14 @@ import com.example.blog.domain.Category;
 import com.example.blog.domain.Post;
 import com.example.blog.domain.PostStatus;
 import com.example.blog.repository.BlogSummary;
+import com.example.blog.service.BlockService;
 import com.example.blog.service.BlogService;
 import com.example.blog.service.CategoryService;
 import com.example.blog.service.MarkdownService;
 import com.example.blog.service.PostService;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -19,9 +21,12 @@ import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -35,15 +40,18 @@ public class PostController {
     private final BlogService blogService;
     private final BlogVisits blogVisits;
     private final PostViews postViews;
+    private final BlockService blockService;
 
     public PostController(PostService postService, CategoryService categoryService, MarkdownService markdownService,
-                          BlogService blogService, BlogVisits blogVisits, PostViews postViews) {
+                          BlogService blogService, BlogVisits blogVisits, PostViews postViews,
+                          BlockService blockService) {
         this.postService = postService;
         this.categoryService = categoryService;
         this.markdownService = markdownService;
         this.blogService = blogService;
         this.blogVisits = blogVisits;
         this.postViews = postViews;
+        this.blockService = blockService;
     }
 
     private static final int SIDEBAR_BLOGS = 5;
@@ -73,8 +81,8 @@ public class PostController {
 
     /** 사이드바의 인기 글 (조회수 상위) */
     @ModelAttribute("popularPosts")
-    public List<Post> popularPosts() {
-        return postService.popular();
+    public List<Post> popularPosts(Authentication auth) {
+        return postService.popular(auth == null ? null : auth.getName());
     }
 
     /** 사이드바의 회원 블로그 (방문 순위 상위) */
@@ -87,13 +95,23 @@ public class PostController {
     @GetMapping("/")
     public String list(@RequestParam(required = false) Long category,
                        @RequestParam(required = false, defaultValue = "") String q,
+                       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                        @RequestParam(defaultValue = "0") int page,
-                       Model model) {
-        model.addAttribute("posts", postService.search(category, q, page));
+                       Authentication auth, Model model) {
+        model.addAttribute("posts", postService.search(category, q, date, page, auth == null ? null : auth.getName()));
+        model.addAttribute("date", date);
         model.addAttribute("curriculum", postService.curriculum());
         model.addAttribute("category", category);
         model.addAttribute("q", q);
         return "posts/list";
+    }
+
+    /** 사이드바 달력: month=2026-10 → {"year":2026,"month":10,"days":{"1":2,"15":1}} */
+    @GetMapping("/calendar")
+    @ResponseBody
+    public Map<String, Object> calendar(@RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
+        YearMonth m = month == null ? YearMonth.now() : month;
+        return Map.of("year", m.getYear(), "month", m.getMonthValue(), "days", postService.postCountsByDay(m));
     }
 
     @GetMapping("/posts/{id}")
@@ -108,6 +126,9 @@ public class PostController {
         model.addAttribute("summary", markdownService.summary(post.getContent(), 150));
         model.addAttribute("canEdit", postService.canEdit(post, auth));
         model.addAttribute("like", postService.likeState(post, auth));
+        String me = auth == null ? null : auth.getName();
+        model.addAttribute("blockedIds", blockService.blockedIds(me));
+        model.addAttribute("authorBlocked", blockService.isBlocked(me, post.getAuthor().getUsername()));
         model.addAttribute("prev", postService.previous(post).orElse(null));
         model.addAttribute("next", postService.next(post).orElse(null));
         model.addAttribute("curriculum", postService.curriculum());
@@ -206,11 +227,18 @@ public class PostController {
     }
 
     @PostMapping("/posts/{id}/comments")
-    public String addComment(@PathVariable Long id, @RequestParam String content, Authentication auth) {
+    public String addComment(@PathVariable Long id, @RequestParam String content,
+                             @RequestParam(required = false) Long parentId, Authentication auth,
+                             RedirectAttributes redirect) {
         if (StringUtils.hasText(content)) {
-            postService.addComment(id, content.trim(), auth);
+            try {
+                postService.addComment(id, content.trim(), parentId, auth);
+            } catch (IllegalStateException e) {
+                redirect.addFlashAttribute("commentError", e.getMessage());
+                return "redirect:/posts/" + id + "#comments";
+            }
         }
-        return "redirect:/posts/" + id + "#comments";
+        return "redirect:/posts/" + id + (parentId == null ? "#comments" : "#comment-" + parentId);
     }
 
     @PostMapping("/comments/{id}/delete")

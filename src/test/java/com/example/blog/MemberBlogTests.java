@@ -2,8 +2,10 @@ package com.example.blog;
 
 import com.example.blog.domain.Category;
 import com.example.blog.repository.CategoryRepository;
+import com.example.blog.repository.CommentRepository;
 import com.example.blog.repository.PostRepository;
 import com.example.blog.repository.SubscriptionRepository;
+import com.example.blog.service.NotificationService;
 import com.example.blog.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +35,8 @@ class MemberBlogTests {
     @Autowired CategoryRepository categoryRepository;
     @Autowired SubscriptionRepository subscriptionRepository;
     @Autowired PostRepository postRepository;
+    @Autowired CommentRepository commentRepository;
+    @Autowired NotificationService notificationService;
 
     @BeforeEach
     void users() {
@@ -237,6 +241,10 @@ class MemberBlogTests {
                 .andExpect(jsonPath("$.count").value(2));
         mvc.perform(get(location).with(user("bob")))
                 .andExpect(content().string(containsString("like-btn liked")));
+        // 글 목록에도 좋아요 수가 보인다
+        String html = mainContent(mvc.perform(get("/").param("q", "좋아요 테스트 글"))
+                .andReturn().getResponse().getContentAsString());
+        assertThat(html).contains("♥ <span>2</span>");
 
         // 다시 누르면 취소
         mvc.perform(post(location + "/like").with(csrf()).with(user("bob")).accept("application/json"))
@@ -324,6 +332,227 @@ class MemberBlogTests {
 
         mvc.perform(get("/")).andExpect(content().string(containsString("로그인하면 나만의 블로그를 만들 수 있어요.")));
         mvc.perform(post("/manage/blog").with(csrf()).with(user("alice")).param("title", "").param("intro", ""));
+    }
+
+    @Test
+    void 댓글에_답글을_달고_지울_수_있다() throws Exception {
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice"))
+                        .param("title", "답글 테스트 글").param("content", "본문"))
+                .andReturn().getResponse().getRedirectedUrl();
+        long postId = Long.parseLong(location.substring(location.lastIndexOf('/') + 1));
+
+        mvc.perform(post(location + "/comments").with(csrf()).with(user("bob")).param("content", "원 댓글"));
+        var parent = commentRepository.findAll().stream()
+                .filter(c -> c.getPost().getId() == postId && !c.isReply()).findFirst().orElseThrow();
+
+        mvc.perform(post(location + "/comments").with(csrf()).with(user("alice"))
+                        .param("content", "첫 답글").param("parentId", parent.getId().toString()))
+                .andExpect(redirectedUrl(location + "#comment-" + parent.getId()));
+        var reply = commentRepository.findAll().stream()
+                .filter(c -> c.isReply() && c.getContent().equals("첫 답글")).findFirst().orElseThrow();
+        // 답글에 답글을 달면 원 댓글 아래에 붙는다
+        mvc.perform(post(location + "/comments").with(csrf()).with(user("bob"))
+                .param("content", "@alice 답글의 답글").param("parentId", reply.getId().toString()));
+        assertThat(commentRepository.findAll().stream()
+                .filter(c -> c.getContent().equals("@alice 답글의 답글")).findFirst().orElseThrow()
+                .getParent().getId()).isEqualTo(parent.getId());
+
+        mvc.perform(get(location))
+                .andExpect(content().string(containsString("class=\"replies\"")))
+                .andExpect(content().string(containsString("댓글 <span>3</span>")));
+
+        // 답글이 있는 댓글을 지우면 '삭제된 댓글'로 남고 답글은 그대로
+        mvc.perform(post("/comments/" + parent.getId() + "/delete").with(csrf()).with(user("bob")));
+        mvc.perform(get(location))
+                .andExpect(content().string(containsString("삭제된 댓글입니다.")))
+                .andExpect(content().string(containsString("첫 답글")))
+                .andExpect(content().string(containsString("댓글 <span>2</span>")));
+
+        // 다른 사람의 답글은 지울 수 없다
+        mvc.perform(post("/comments/" + reply.getId() + "/delete").with(csrf()).with(user("bob")))
+                .andExpect(status().isForbidden());
+
+        // 답글과 댓글이 남아 있어도 글을 지울 수 있다
+        mvc.perform(post(location + "/delete").with(csrf()).with(user("alice"))).andExpect(status().is3xxRedirection());
+        assertThat(commentRepository.findAll()).noneMatch(c -> c.getPost().getId() == postId);
+    }
+
+    @Test
+    void 삭제된_댓글의_마지막_답글을_지우면_댓글도_사라진다() throws Exception {
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice"))
+                        .param("title", "정리 테스트 글").param("content", "본문"))
+                .andReturn().getResponse().getRedirectedUrl();
+        mvc.perform(post(location + "/comments").with(csrf()).with(user("bob")).param("content", "곧 지울 댓글"));
+        Long parentId = commentRepository.findAll().stream()
+                .filter(c -> c.getContent().equals("곧 지울 댓글")).findFirst().orElseThrow().getId();
+        mvc.perform(post(location + "/comments").with(csrf()).with(user("alice"))
+                .param("content", "하나뿐인 답글").param("parentId", parentId.toString()));
+        Long replyId = commentRepository.findAll().stream()
+                .filter(c -> c.getContent().equals("하나뿐인 답글")).findFirst().orElseThrow().getId();
+
+        mvc.perform(post("/comments/" + parentId + "/delete").with(csrf()).with(user("bob")));
+        assertThat(commentRepository.findById(parentId)).isPresent();
+        mvc.perform(post("/comments/" + replyId + "/delete").with(csrf()).with(user("alice")));
+        assertThat(commentRepository.findById(parentId)).isEmpty();
+        assertThat(commentRepository.findById(replyId)).isEmpty();
+    }
+
+    @Test
+    void 내_글에_댓글이나_내_댓글에_답글이_달리면_알림이_온다() throws Exception {
+        if (!userService.exists("frank")) {
+            userService.register("frank", "password123", "USER");
+        }
+        long before = notificationService.unreadCount("frank");
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("frank"))
+                        .param("title", "알림 테스트 글").param("content", "본문"))
+                .andReturn().getResponse().getRedirectedUrl();
+
+        // 내가 단 댓글은 알림이 없다
+        mvc.perform(post(location + "/comments").with(csrf()).with(user("frank")).param("content", "내 댓글"));
+        assertThat(notificationService.unreadCount("frank")).isEqualTo(before);
+
+        // bob 이 댓글 → frank(글쓴이)에게 알림
+        mvc.perform(post(location + "/comments").with(csrf()).with(user("bob")).param("content", "bob 의 댓글"));
+        assertThat(notificationService.unreadCount("frank")).isEqualTo(before + 1);
+        Long bobComment = commentRepository.findAll().stream()
+                .filter(c -> c.getContent().equals("bob 의 댓글")).findFirst().orElseThrow().getId();
+
+        // alice 가 bob 댓글에 답글 → bob 에게 답글 알림, frank 에게 댓글 알림 (각 한 번)
+        long bobBefore = notificationService.unreadCount("bob");
+        mvc.perform(post(location + "/comments").with(csrf()).with(user("alice"))
+                .param("content", "alice 의 답글").param("parentId", bobComment.toString()));
+        assertThat(notificationService.unreadCount("bob")).isEqualTo(bobBefore + 1);
+        assertThat(notificationService.unreadCount("frank")).isEqualTo(before + 2);
+
+        // 상단 🔔 에 안 읽은 수와 최근 알림이 보인다
+        mvc.perform(get("/").with(user("frank")))
+                .andExpect(content().string(containsString("class=\"noti-badge\">" + (before + 2) + "<")))
+                .andExpect(content().string(containsString("님이 내 글에 댓글을 남겼어요")))
+                .andExpect(content().string(containsString("alice 의 답글")));
+
+        // 알림을 누르면 그 댓글로 이동하고 읽음 처리
+        Long notiId = notificationService.recent("frank").get(0).getId();
+        String target = mvc.perform(get("/notifications/" + notiId).with(user("frank")))
+                .andReturn().getResponse().getRedirectedUrl();
+        assertThat(target).startsWith(location + "#comment-");
+        assertThat(notificationService.unreadCount("frank")).isEqualTo(before + 1);
+        // 남의 알림은 열 수 없다
+        mvc.perform(get("/notifications/" + notiId).with(user("bob"))).andExpect(status().isNotFound());
+
+        mvc.perform(post("/notifications/read-all").with(csrf()).with(user("frank")));
+        assertThat(notificationService.unreadCount("frank")).isZero();
+        mvc.perform(get("/notifications").with(user("frank"))).andExpect(status().isOk());
+
+        // 알림이 달린 글도 지울 수 있다
+        mvc.perform(post(location + "/delete").with(csrf()).with(user("frank"))).andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    void 관리자가_정지한_회원은_로그인할_수_없고_로그인_중이면_쫓겨난다() throws Exception {
+        if (!userService.exists("spammer")) {
+            userService.register("spammer", "password123", "USER");
+        }
+        // 일반 회원은 회원 관리에 못 들어간다
+        mvc.perform(get("/manage/users").with(user("alice"))).andExpect(status().isForbidden());
+
+        mvc.perform(post("/manage/users/spammer/ban").with(csrf()).with(user("admin").roles("ADMIN"))
+                        .param("reason", "광고 도배"))
+                .andExpect(flash().attribute("message", "spammer 님의 이용을 정지했습니다."));
+        assertThat(userService.get("spammer").getBanReason()).isEqualTo("광고 도배");
+
+        mvc.perform(post("/login").with(csrf()).param("username", "spammer").param("password", "password123"))
+                .andExpect(redirectedUrl("/login?banned"));
+        // 이미 로그인한 세션도 다음 요청에서 로그아웃
+        mvc.perform(get("/manage").with(user("spammer"))).andExpect(redirectedUrl("/login?banned"));
+        mvc.perform(get("/login").param("banned", "")).andExpect(content().string(containsString("이용이 정지된 계정입니다")));
+
+        // 관리자는 정지할 수 없다
+        mvc.perform(post("/manage/users/admin/ban").with(csrf()).with(user("admin").roles("ADMIN")))
+                .andExpect(flash().attribute("error", "관리자 계정은 정지할 수 없습니다."));
+
+        mvc.perform(post("/manage/users/spammer/unban").with(csrf()).with(user("admin").roles("ADMIN")));
+        mvc.perform(post("/login").with(csrf()).param("username", "spammer").param("password", "password123"))
+                .andExpect(redirectedUrl("/"));
+        mvc.perform(get("/manage/users").with(user("admin").roles("ADMIN")).param("q", "spam"))
+                .andExpect(content().string(containsString("spammer")));
+    }
+
+    @Test
+    void 차단하면_글이_안_보이고_차단당한_사람은_댓글_구독을_못_한다() throws Exception {
+        for (String name : new String[]{"gina", "troll"}) {
+            if (!userService.exists(name)) {
+                userService.register(name, "password123", "USER");
+            }
+        }
+        write("troll", "트롤의 차단 테스트 글", "본문");
+        String ginaPost = mvc.perform(post("/posts/new").with(csrf()).with(user("gina"))
+                        .param("title", "지나의 글").param("content", "본문"))
+                .andReturn().getResponse().getRedirectedUrl();
+        mvc.perform(post(ginaPost + "/comments").with(csrf()).with(user("troll")).param("content", "트롤의 댓글"));
+        mvc.perform(post("/blog/gina/subscribe").with(csrf()).with(user("troll")));
+
+        mvc.perform(post("/blog/troll/block").with(csrf()).with(user("gina")))
+                .andExpect(redirectedUrl("/blog/troll"));
+
+        // gina 에게는 troll 의 글이 목록에서 빠지고, 댓글은 접힌다
+        mvc.perform(get("/").with(user("gina")).param("q", "트롤의 차단 테스트"))
+                .andExpect(content().string(containsString("검색 결과 <span>0</span>건")));
+        mvc.perform(get("/").param("q", "트롤의 차단 테스트"))
+                .andExpect(content().string(containsString("검색 결과 <span>1</span>건")));
+        mvc.perform(get(ginaPost).with(user("gina")))
+                .andExpect(content().string(containsString("차단한 사용자의 댓글입니다.")))
+                .andExpect(content().string(not(containsString("트롤의 댓글"))));
+        mvc.perform(get("/blog/troll").with(user("gina")))
+                .andExpect(content().string(containsString("차단한 사용자의 블로그예요")));
+
+        // troll 은 gina 글에 댓글을 달 수 없고, 구독도 끊겼다
+        long before = commentRepository.count();
+        mvc.perform(post(ginaPost + "/comments").with(csrf()).with(user("troll")).param("content", "또 댓글"))
+                .andExpect(flash().attribute("commentError", "글쓴이가 차단해 이 글에는 댓글을 달 수 없어요."));
+        assertThat(commentRepository.count()).isEqualTo(before);
+        assertThat(subscriptionRepository.findBySubscriberUsernameOrderByCreatedAtDesc("troll")).isEmpty();
+        mvc.perform(post("/blog/gina/subscribe").with(csrf()).with(user("troll")))
+                .andExpect(flash().attribute("error", "구독할 수 없는 블로그입니다."));
+
+        mvc.perform(get("/manage/blocks").with(user("gina"))).andExpect(content().string(containsString("troll")));
+        mvc.perform(post("/manage/blocks/troll/delete").with(csrf()).with(user("gina")));
+        mvc.perform(get("/").with(user("gina")).param("q", "트롤의 차단 테스트"))
+                .andExpect(content().string(containsString("검색 결과 <span>1</span>건")));
+    }
+
+    @Test
+    void 글_관리에서_검색할_수_있다() throws Exception {
+        write("bob", "관리검색 사과 글", "본문");
+        write("bob", "다른 글 제목", "내용에 관리검색 사과");
+        write("alice", "앨리스 관리검색 사과", "본문");
+
+        // 일반 회원은 자기 글에서만 찾는다
+        String mine = mvc.perform(get("/manage").with(user("bob")).param("q", "관리검색 사과"))
+                .andExpect(content().string(containsString("검색 결과 <span>2</span>건")))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(mine).doesNotContain("앨리스 관리검색 사과");
+        // 관리자는 모든 글에서, 작성자 아이디로도 찾는다
+        mvc.perform(get("/manage").with(user("admin").roles("ADMIN")).param("q", "관리검색 사과"))
+                .andExpect(content().string(containsString("검색 결과 <span>3</span>건")));
+        mvc.perform(get("/manage").with(user("admin").roles("ADMIN")).param("q", "bob"))
+                .andExpect(content().string(containsString("관리검색 사과 글")));
+    }
+
+    @Test
+    void 달력에_글_쓴_날이_표시되고_날짜를_누르면_그날_글만_나온다() throws Exception {
+        write("alice", "달력 테스트 오늘 글", "본문");
+        java.time.LocalDate today = java.time.LocalDate.now();
+
+        mvc.perform(get("/calendar").param("month", java.time.YearMonth.from(today).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days['" + today.getDayOfMonth() + "']").isNumber());
+
+        String day = mainContent(mvc.perform(get("/").param("date", today.toString()))
+                .andReturn().getResponse().getContentAsString());
+        assertThat(day).contains("달력 테스트 오늘 글", "에 쓴 글");
+        String longAgo = mainContent(mvc.perform(get("/").param("date", today.minusYears(5).toString()))
+                .andReturn().getResponse().getContentAsString());
+        assertThat(longAgo).doesNotContain("달력 테스트 오늘 글").contains("에 쓴 글");
     }
 
     /** 사이드바(인기 글 등)에도 글 제목이 나오므로 본문 영역만 잘라서 순서를 본다 */

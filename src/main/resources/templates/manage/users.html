@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('회원 관리')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container manage-layout">
+    <nav th:replace="~{fragments/layout :: manageNav}"></nav>
+
+    <section class="content">
+        <h1>회원 관리</h1>
+        <p class="hint">이용을 정지한 회원은 로그인할 수 없고, 로그인 중이었다면 바로 로그아웃돼요. 쓴 글과 댓글은 그대로 남아요.</p>
+        <p class="notice" th:if="${message}" th:text="${message}"></p>
+        <p class="error-box" th:if="${error}" th:text="${error}"></p>
+
+        <form class="search manage-search" th:action="@{/manage/users}" method="get" role="search">
+            <input type="search" name="q" th:value="${q}" placeholder="아이디 검색" aria-label="아이디 검색">
+            <button type="submit" class="btn">검색</button>
+        </form>
+
+        <p th:if="${users.empty}" class="empty">회원이 없습니다.</p>
+
+        <table class="manage-table" th:unless="${users.empty}">
+            <thead>
+            <tr>
+                <th>아이디</th>
+                <th>가입일</th>
+                <th>상태</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="u : ${users}">
+                <td class="col-title">
+                    <a th:href="@{/blog/{name}(name=${u.username})}" th:text="${u.username}">아이디</a>
+                    <span class="meta" th:if="${u.admin}">관리자</span>
+                </td>
+                <td class="meta" th:text="${#temporals.format(u.createdAt, 'yyyy-MM-dd')}">날짜</td>
+                <td>
+                    <span th:if="${u.banned}" class="status-chip banned-chip"
+                          th:title="${u.banReason}" th:text="'정지 · ' + ${#temporals.format(u.bannedAt, 'MM-dd')}">정지</span>
+                    <span th:unless="${u.banned}" class="status-chip public">정상</span>
+                    <div class="meta" th:if="${u.banned and u.banReason != null}" th:text="'사유: ' + ${u.banReason}">사유</div>
+                </td>
+                <td class="col-actions">
+                    <th:block th:unless="${u.admin}">
+                        <form th:unless="${u.banned}" th:action="@{/manage/users/{name}/ban(name=${u.username})}"
+                              method="post" class="ban-form" th:attr="data-name=${u.username}"
+                              onsubmit="return confirm(this.dataset.name + ' 님의 이용을 정지할까요?');">
+                            <input type="hidden" name="q" th:value="${q}">
+                            <input type="text" name="reason" maxlength="200" placeholder="정지 사유 (선택)" aria-label="정지 사유">
+                            <button type="submit" class="btn btn-sm btn-danger">정지</button>
+                        </form>
+                        <form th:if="${u.banned}" th:action="@{/manage/users/{name}/unban(name=${u.username})}"
+                              method="post" class="inline">
+                            <input type="hidden" name="q" th:value="${q}">
+                            <button type="submit" class="btn btn-sm">정지 해제</button>
+                        </form>
+                    </th:block>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <nav class="pagination" th:if="${users.totalPages > 1}">
+            <a th:each="i : ${#numbers.sequence(0, users.totalPages - 1)}"
+               th:href="@{/manage/users(page=${i}, q=${#strings.isEmpty(q) ? null : q})}"
+               th:text="${i + 1}" th:classappend="${i == users.number} ? 'current'">1</a>
+        </nav>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

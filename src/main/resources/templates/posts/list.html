@@ -11,6 +11,10 @@
     <aside th:replace="~{fragments/layout :: curriculum}"></aside>
 
     <section class="content">
+        <p class="hint search-result" th:if="${date != null}">
+            📅 <strong th:text="${#temporals.format(date, 'yyyy년 M월 d일')}">2026년 10월 1일</strong>에 쓴 글
+            <span th:text="${posts.totalElements}">0</span>개 <a th:href="@{/}">전체 글 보기</a>
+        </p>
         <p class="hint search-result" th:if="${!#strings.isEmpty(q)}">
             '<strong th:text="${q}">검색어</strong>' 검색 결과 <span th:text="${posts.totalElements}">0</span>건
             · 작성자 → 제목 → 내용 순 <a th:href="@{/}">검색 지우기</a>
@@ -20,7 +24,7 @@
 
         <nav class="pagination" th:if="${posts.totalPages > 1}">
             <a th:each="i : ${#numbers.sequence(0, posts.totalPages - 1)}"
-               th:href="@{/(page=${i}, category=${category}, q=${#strings.isEmpty(q) ? null : q})}"
+               th:href="@{/(page=${i}, category=${category}, q=${#strings.isEmpty(q) ? null : q}, date=${date})}"
                th:text="${i + 1}"
                th:classappend="${i == posts.number} ? 'current'">1</a>
         </nav>

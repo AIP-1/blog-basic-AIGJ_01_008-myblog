@@ -8,6 +8,7 @@ import com.example.blog.repository.BlogCategory;
 import com.example.blog.repository.BlogSummary;
 import com.example.blog.repository.PostRepository;
 import com.example.blog.repository.SubscriptionRepository;
+import com.example.blog.repository.UserBlockRepository;
 import com.example.blog.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,13 +38,16 @@ public class BlogService {
     private final PostRepository postRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final CategoryService categoryService;
+    private final UserBlockRepository blockRepository;
 
     public BlogService(UserRepository userRepository, PostRepository postRepository,
-                       SubscriptionRepository subscriptionRepository, CategoryService categoryService) {
+                       SubscriptionRepository subscriptionRepository, CategoryService categoryService,
+                       UserBlockRepository blockRepository) {
         this.userRepository = userRepository;
         this.postRepository = postRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.categoryService = categoryService;
+        this.blockRepository = blockRepository;
     }
 
     public User owner(String username) {
@@ -145,6 +149,12 @@ public class BlogService {
         }
         User me = owner(subscriber);
         User target = owner(blogOwner);
+        if (blockRepository.existsByBlockerUsernameAndBlockedUsername(blogOwner, subscriber)) {
+            throw new IllegalArgumentException("구독할 수 없는 블로그입니다.");
+        }
+        if (blockRepository.existsByBlockerUsernameAndBlockedUsername(subscriber, blogOwner)) {
+            throw new IllegalArgumentException("차단한 블로그는 구독할 수 없어요. 차단을 먼저 풀어 주세요.");
+        }
         if (subscriptionRepository.findBySubscriberAndBlogOwner(me, target).isEmpty()) {
             subscriptionRepository.save(new Subscription(me, target));
         }

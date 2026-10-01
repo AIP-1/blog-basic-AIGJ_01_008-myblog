@@ -1,6 +1,7 @@
 package com.example.blog.domain;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Formula;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -50,6 +51,10 @@ public class Post {
     /** 조회수 (인기 글 기준). 기존 행이 있어도 컬럼이 추가되도록 기본값 0 */
     @Column(nullable = false, columnDefinition = "bigint default 0")
     private long viewCount;
+
+    /** 좋아요 수. 글을 불러올 때 함께 세므로 목록에서 글마다 따로 조회하지 않는다 */
+    @Formula("(select count(*) from post_like l where l.post_id = id)")
+    private long likeCount;
 
     /** 관리자가 지정한 공지사항 (사이드바 공지 칸에 보인다) */
     @Column(nullable = false, columnDefinition = "boolean default false")
@@ -141,6 +146,16 @@ public class Post {
         return comments;
     }
 
+    /** 답글을 뺀 원 댓글 (답글은 각 댓글의 replies 로) */
+    public List<Comment> getTopComments() {
+        return comments.stream().filter(c -> !c.isReply()).toList();
+    }
+
+    /** 삭제 표시된 댓글을 뺀 댓글·답글 수 */
+    public long getCommentCount() {
+        return comments.stream().filter(c -> !c.isDeleted()).count();
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -151,6 +166,10 @@ public class Post {
 
     public long getViewCount() {
         return viewCount;
+    }
+
+    public long getLikeCount() {
+        return likeCount;
     }
 
     public boolean isNotice() {

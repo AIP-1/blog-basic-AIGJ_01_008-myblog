@@ -38,7 +38,7 @@
 
             <a th:if="${isOwner}" class="btn btn-sm" th:href="@{/manage/blog}">블로그 꾸미기</a>
             <th:block th:unless="${isOwner}">
-                <form sec:authorize="isAuthenticated()" th:unless="${subscribed}"
+                <form sec:authorize="isAuthenticated()" th:unless="${subscribed or blockedByMe}"
                       th:action="@{/blog/{u}/subscribe(u=${owner.username})}" method="post">
                     <button type="submit" class="btn btn-primary btn-sm">＋ 구독하기</button>
                 </form>
@@ -47,6 +47,16 @@
                     <button type="submit" class="btn btn-sm">✓ 구독 중 · 취소</button>
                 </form>
                 <a sec:authorize="!isAuthenticated()" class="btn btn-primary btn-sm" th:href="@{/login}">로그인하고 구독하기</a>
+                <form sec:authorize="isAuthenticated()" th:unless="${blockedByMe}" class="block-form"
+                      th:action="@{/blog/{u}/block(u=${owner.username})}" method="post"
+                      th:attr="data-name=${owner.username}"
+                      onsubmit="return confirm(this.dataset.name + ' 님을 차단할까요?\n이 사람의 글과 댓글이 보이지 않고, 내 글에 댓글을 달 수 없게 돼요.');">
+                    <button type="submit" class="link">🚫 차단하기</button>
+                </form>
+                <form sec:authorize="isAuthenticated()" th:if="${blockedByMe}" class="block-form"
+                      th:action="@{/blog/{u}/unblock(u=${owner.username})}" method="post">
+                    <button type="submit" class="link">차단 풀기</button>
+                </form>
             </th:block>
         </section>
 
@@ -86,9 +96,12 @@
             <a th:href="@{/(q=${q})}">사이트 전체에서 찾기 →</a>
         </p>
 
-        <th:block th:replace="~{fragments/layout :: postList(${posts})}"></th:block>
+        <p class="notice-box" th:if="${blockedByMe}">차단한 사용자의 블로그예요. 글을 보려면 왼쪽의 <strong>차단 풀기</strong>를 눌러 주세요.</p>
+        <th:block th:unless="${blockedByMe}">
+            <th:block th:replace="~{fragments/layout :: postList(${posts})}"></th:block>
+        </th:block>
 
-        <nav class="pagination" th:if="${posts.totalPages > 1}">
+        <nav class="pagination" th:if="${posts.totalPages > 1 and !blockedByMe}">
             <a th:each="i : ${#numbers.sequence(0, posts.totalPages - 1)}"
                th:href="@{/blog/{u}(u=${owner.username}, page=${i}, category=${category}, q=${#strings.isEmpty(q) ? null : q})}"
                th:text="${i + 1}"

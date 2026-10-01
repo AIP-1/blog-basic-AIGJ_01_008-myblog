@@ -460,3 +460,81 @@ a.more { color: var(--muted); font-size: .85rem; }
 .my-blog-stats dd { margin: 0; font-weight: 700; font-size: 1.05rem; }
 .my-blog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .my-blog-actions .btn { text-align: center; }
+
+/* 글 목록·글 화면의 좋아요 수 */
+.meta .likes { color: var(--muted); }
+.meta a.likes:hover { color: var(--danger); text-decoration: none; }
+
+/* 댓글 답글 */
+.comments .replies { margin: 6px 0 0 18px; padding-left: 14px; border-left: 2px solid var(--border); }
+.comments .replies li { border-bottom: 0; padding: 8px 0; }
+.reply-mark { color: var(--muted); }
+.comment-body .deleted { color: var(--muted); font-style: italic; margin: 4px 0; }
+.reply-toggle { margin-top: 4px; }
+.reply-toggle summary { cursor: pointer; list-style: none; color: var(--muted); font-size: .82rem; display: inline-block; }
+.reply-toggle summary::-webkit-details-marker { display: none; }
+.reply-toggle summary:hover, .reply-toggle[open] summary { color: var(--link); }
+.reply-toggle .comment-form { margin-top: 6px; }
+
+/* 🔔 알림 */
+.noti { position: relative; }
+.noti-bell { list-style: none; position: relative; padding: 4px 10px; }
+.noti-bell::-webkit-details-marker { display: none; }
+.noti-badge {
+    position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 999px; background: var(--danger); color: #fff; font-size: .7rem; font-weight: 700;
+    line-height: 18px; text-align: center;
+}
+.noti-panel {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: min(360px, calc(100vw - 32px));
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 24px var(--shadow); padding: 10px;
+}
+.noti-head { display: flex; justify-content: space-between; align-items: center; padding: 2px 6px 8px; }
+.noti-list { list-style: none; margin: 0; padding: 0; }
+.noti-panel .noti-list { max-height: 360px; overflow-y: auto; }
+.noti-list li a {
+    display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px;
+    color: var(--text); font-size: .88rem; text-decoration: none;
+}
+.noti-list li a:hover { background: var(--surface-2); }
+.noti-list li.unread a { background: var(--accent-bg); }
+.noti-list li.unread .noti-text::before { content: "● "; color: var(--link); }
+.noti-post { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.noti-snippet { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.noti-empty { padding: 8px 6px; margin: 0; }
+.noti-all { display: block; text-align: center; padding: 8px 0 2px; font-size: .85rem; }
+.noti-list-page li { border-bottom: 1px solid var(--border); }
+.noti-list-page li a { border-radius: 0; padding: 12px 8px; }
+.noti-page-head { display: flex; justify-content: space-between; align-items: center; }
+
+/* 글 관리·회원 관리 검색 */
+.manage-search { margin: 12px 0; }
+/* 차단·정지 */
+.block-form { margin-top: 8px; }
+.banned-chip { background: var(--danger-bg); color: var(--danger-text); }
+.ban-form { display: inline-flex; gap: 6px; align-items: center; }
+.ban-form input { padding: 3px 8px; font-size: .82rem; width: 150px; }
+
+/* 사이드바 달력 */
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.cal-head .cal-title { margin: 0; font-size: .95rem; }
+.cal-nav {
+    width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text); cursor: pointer; line-height: 1;
+}
+.cal-nav:hover { background: var(--surface-2); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-size: .8rem; }
+.cal-grid > * { padding: 4px 0; border-radius: 6px; line-height: 1.4; }
+.cal-week { color: var(--muted); font-weight: 600; }
+.cal-grid .sun { color: var(--danger); }
+.cal-grid .sat { color: var(--info-text); }
+.cal-day.today { outline: 1px solid var(--primary); }
+a.cal-day.has-post { position: relative; font-weight: 700; color: var(--link); text-decoration: none; }
+a.cal-day.has-post::after {
+    content: ""; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px;
+    border-radius: 50%; background: var(--primary); transform: translateX(-50%);
+}
+a.cal-day.has-post:hover { background: var(--accent-bg); }
+.cal-day.selected { background: var(--primary); color: var(--on-primary) !important; }
+.cal-day.selected::after { background: var(--on-primary) !important; }

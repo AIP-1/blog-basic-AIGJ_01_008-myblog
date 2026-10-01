@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('알림')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container narrow">
+    <section class="content">
+        <div class="noti-page-head">
+            <h1>알림</h1>
+            <form th:if="${unreadCount != null and unreadCount > 0}" th:action="@{/notifications/read-all}" method="post">
+                <button type="submit" class="btn btn-sm">모두 읽음으로</button>
+            </form>
+        </div>
+        <p class="hint">내 글에 댓글이 달리거나 내 댓글에 답글이 달리면 알려 드려요. 누르면 그 댓글로 이동해요.</p>
+
+        <p th:if="${notifications.empty}" class="empty">아직 알림이 없어요.</p>
+        <ul class="noti-list noti-list-page">
+            <th:block th:each="n : ${notifications}">
+                <li th:replace="~{fragments/layout :: notiItem(${n})}"></li>
+            </th:block>
+        </ul>
+
+        <nav class="pagination" th:if="${notifications.totalPages > 1}">
+            <a th:each="i : ${#numbers.sequence(0, notifications.totalPages - 1)}"
+               th:href="@{/notifications(page=${i})}" th:text="${i + 1}"
+               th:classappend="${i == notifications.number} ? 'current'">1</a>
+        </nav>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

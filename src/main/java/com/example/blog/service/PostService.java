@@ -6,6 +6,7 @@ import com.example.blog.domain.PostLike;
 import com.example.blog.domain.PostStatus;
 import com.example.blog.domain.User;
 import com.example.blog.repository.CommentRepository;
+import com.example.blog.repository.NotificationRepository;
 import com.example.blog.repository.PostLikeRepository;
 import com.example.blog.repository.PostRepository;
 import org.springframework.data.domain.Page;
@@ -19,11 +20,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 
 @Service
 @Transactional(readOnly = true)
@@ -36,22 +41,46 @@ public class PostService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final PostLikeRepository postLikeRepository;
+    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
+    private final BlockService blockService;
     private final UserService userService;
     private final CategoryService categoryService;
 
     public PostService(PostRepository postRepository, CommentRepository commentRepository,
-                       PostLikeRepository postLikeRepository, UserService userService, CategoryService categoryService) {
+                       PostLikeRepository postLikeRepository, NotificationRepository notificationRepository,
+                       NotificationService notificationService, BlockService blockService,
+                       UserService userService, CategoryService categoryService) {
         this.postRepository = postRepository;
         this.commentRepository = commentRepository;
         this.postLikeRepository = postLikeRepository;
+        this.notificationRepository = notificationRepository;
+        this.notificationService = notificationService;
+        this.blockService = blockService;
         this.userService = userService;
         this.categoryService = categoryService;
     }
 
     /** 목록은 최신순, 검색하면 작성자 → 제목 → 내용 일치 순 (정렬은 쿼리 안에 있음) */
-    public Page<Post> search(Long categoryId, String keyword, int page) {
+    public Page<Post> search(Long categoryId, String keyword, int page, String viewer) {
+        return search(categoryId, keyword, null, page, viewer);
+    }
+
+    /** date 가 있으면 그날 쓴 글만 (달력) */
+    public Page<Post> search(Long categoryId, String keyword, LocalDate date, int page, String viewer) {
         String q = keyword == null ? "" : keyword.trim().toLowerCase();
-        return postRepository.searchPublic(categoryId, q, PageRequest.of(Math.max(page, 0), PAGE_SIZE));
+        LocalDateTime from = date == null ? null : date.atStartOfDay();
+        LocalDateTime to = date == null ? null : date.plusDays(1).atStartOfDay();
+        return postRepository.searchPublic(categoryId, q, viewer == null ? "" : viewer, from, to,
+                PageRequest.of(Math.max(page, 0), PAGE_SIZE));
+    }
+
+    /** 달력: 그 달에 공개 글을 쓴 날짜별 글 수 (키: 일) */
+    public Map<Integer, Long> postCountsByDay(YearMonth month) {
+        Map<Integer, Long> counts = new TreeMap<>();
+        postRepository.findPublicCreatedAtBetween(month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay())
+                .forEach(t -> counts.merge(t.getDayOfMonth(), 1L, Long::sum));
+        return counts;
     }
 
     /** 사이드바 공지사항 (공개 글 중 최신 5개) */
@@ -68,9 +97,13 @@ public class PostService {
         get(id).changeNotice(notice);
     }
 
-    /** 사이드바 인기 글 (공개 글 중 조회수 상위 5개) */
-    public List<Post> popular() {
-        return postRepository.findTop5ByStatusOrderByViewCountDescCreatedAtDesc(PostStatus.PUBLIC);
+    /** 사이드바 인기 글 (공개 글 중 조회수 상위 5개, 내가 차단한 사람의 글은 빼고) */
+    public List<Post> popular(String viewer) {
+        Set<Long> blocked = blockService.blockedIds(viewer);
+        return postRepository.findTop10ByStatusOrderByViewCountDescCreatedAtDesc(PostStatus.PUBLIC).stream()
+                .filter(p -> !blocked.contains(p.getAuthor().getId()))
+                .limit(5)
+                .toList();
     }
 
     /**
@@ -154,18 +187,22 @@ public class PostService {
     }
 
     /** 관리 페이지: 일반 사용자는 자기 글만, 관리자는 모든 글 */
-    public Page<Post> manageList(PostStatus status, int page, Authentication auth) {
+    public Page<Post> manageList(PostStatus status, String keyword, int page, Authentication auth) {
         PageRequest pageable = PageRequest.of(Math.max(page, 0), MANAGE_PAGE_SIZE, Sort.by(Sort.Direction.DESC, "updatedAt", "id"));
-        return postRepository.findForManage(manageScope(auth), status, pageable);
+        return postRepository.findForManage(manageScope(auth), status, manageKeyword(keyword), pageable);
     }
 
-    /** 상태별 글 수 (키: PUBLIC, PRIVATE, DRAFT) */
-    public Map<String, Long> manageCounts(Authentication auth) {
+    /** 상태별 글 수 (키: PUBLIC, PRIVATE, DRAFT). 검색 중이면 검색 결과 안에서 센다 */
+    public Map<String, Long> manageCounts(String keyword, Authentication auth) {
         Map<String, Long> counts = new LinkedHashMap<>();
         for (PostStatus status : PostStatus.values()) {
-            counts.put(status.name(), postRepository.countForManage(manageScope(auth), status));
+            counts.put(status.name(), postRepository.countForManage(manageScope(auth), status, manageKeyword(keyword)));
         }
         return counts;
+    }
+
+    private static String manageKeyword(String keyword) {
+        return keyword == null ? "" : keyword.trim().toLowerCase();
     }
 
     @Transactional
@@ -180,6 +217,10 @@ public class PostService {
         Post post = get(id);
         checkEditable(post, auth);
         postLikeRepository.deleteByPost(post);
+        notificationRepository.deleteByPost(post);
+        // 답글이 원 댓글을 가리키므로 답글부터 지운 뒤 글(과 남은 댓글)을 지운다
+        post.getComments().stream().filter(Comment::isReply).toList().forEach(this::removeComment);
+        commentRepository.flush();
         postRepository.delete(post);
     }
 
@@ -204,24 +245,79 @@ public class PostService {
         return likeState(post, auth);
     }
 
+    /** parentId 가 있으면 그 댓글의 답글. 답글에 답글을 달면 원래 댓글 아래에 붙는다 */
     @Transactional
-    public void addComment(Long postId, String content, Authentication auth) {
+    public void addComment(Long postId, String content, Long parentId, Authentication auth) {
         Post post = getVisible(postId, auth);
-        commentRepository.save(new Comment(content, post, userService.get(auth.getName())));
+        Comment parent = null;
+        Comment target = null;
+        if (parentId != null) {
+            parent = target = findComment(parentId);
+            if (!parent.getPost().getId().equals(post.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "다른 글의 댓글입니다.");
+            }
+            if (parent.isReply()) {
+                parent = parent.getParent();
+            }
+            if (parent.isDeleted()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "삭제된 댓글에는 답글을 달 수 없습니다.");
+            }
+        }
+        checkNotBlockedBy(post.getAuthor(), auth, "글쓴이가 차단해 이 글에는 댓글을 달 수 없어요.");
+        if (parent != null) {
+            checkNotBlockedBy(target.getAuthor(), auth, "댓글 작성자가 차단해 답글을 달 수 없어요.");
+            checkNotBlockedBy(parent.getAuthor(), auth, "댓글 작성자가 차단해 답글을 달 수 없어요.");
+        }
+        Comment comment = commentRepository.save(new Comment(content, post, userService.get(auth.getName()), parent));
+        post.getComments().add(comment);
+        if (parent != null) {
+            parent.getReplies().add(comment);
+        }
+        notificationService.notifyNewComment(comment, target);
     }
 
-    /** 삭제 후 돌아갈 글 id 를 반환 */
+    /**
+     * 삭제 후 돌아갈 글 id 를 반환.
+     * 답글이 달린 댓글은 '삭제된 댓글'로만 표시하고, 그런 댓글의 마지막 답글이 지워지면 댓글도 함께 지운다.
+     */
     @Transactional
     public Long deleteComment(Long commentId, Authentication auth) {
-        Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."));
+        Comment comment = findComment(commentId);
         if (!comment.isWrittenBy(auth.getName()) && !isAdmin(auth)) {
             throw new AccessDeniedException("권한이 없습니다.");
         }
         Long postId = comment.getPost().getId();
-        comment.getPost().getComments().remove(comment);
-        commentRepository.delete(comment);
+        if (!comment.getReplies().isEmpty()) {
+            comment.markDeleted();
+            return postId;
+        }
+        Comment parent = comment.getParent();
+        removeComment(comment);
+        if (parent != null && parent.isDeleted() && parent.getReplies().isEmpty()) {
+            removeComment(parent);
+        }
         return postId;
+    }
+
+    /** owner 가 지금 사용자를 차단했다면 IllegalStateException (화면에 메시지로 보여 준다) */
+    private void checkNotBlockedBy(User owner, Authentication auth, String message) {
+        if (blockService.isBlocked(owner.getUsername(), auth.getName())) {
+            throw new IllegalStateException(message);
+        }
+    }
+
+    private Comment findComment(Long id) {
+        return commentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."));
+    }
+
+    private void removeComment(Comment comment) {
+        if (comment.getParent() != null) {
+            comment.getParent().getReplies().remove(comment);
+        }
+        comment.getPost().getComments().remove(comment);
+        notificationRepository.deleteByComment(comment);
+        commentRepository.delete(comment);
     }
 
     public boolean canEdit(Post post, Authentication auth) {

@@ -12,15 +12,25 @@
         <p class="hint" th:if="${isAdmin}">관리자는 모든 사용자의 글을 관리할 수 있어요.</p>
         <p class="notice" th:if="${message}" th:text="${message}"></p>
 
+        <form class="search manage-search" th:action="@{/manage}" method="get" role="search">
+            <input type="hidden" name="status" th:value="${status}" th:if="${status != null}">
+            <input type="search" name="q" th:value="${q}" aria-label="글 검색"
+                   th:placeholder="${isAdmin} ? '제목·내용·작성자 검색' : '제목·내용 검색'">
+            <button type="submit" class="btn">검색</button>
+            <a th:if="${!#strings.isEmpty(q)}" class="btn" th:href="@{/manage(status=${status})}">검색 지우기</a>
+        </form>
+        <p class="hint" th:if="${!#strings.isEmpty(q)}">
+            '<strong th:text="${q}">검색어</strong>' 검색 결과 <span th:text="${posts.totalElements}">0</span>건</p>
+
         <nav class="tabs">
-            <a th:href="@{/manage}" th:classappend="${status == null} ? 'active'">전체 <span th:text="${total}">0</span></a>
-            <a th:each="s : ${statuses}" th:href="@{/manage(status=${s})}"
+            <a th:href="@{/manage(q=${#strings.isEmpty(q) ? null : q})}" th:classappend="${status == null} ? 'active'">전체 <span th:text="${total}">0</span></a>
+            <a th:each="s : ${statuses}" th:href="@{/manage(status=${s}, q=${#strings.isEmpty(q) ? null : q})}"
                th:classappend="${status == s} ? 'active'">
                 <span th:text="${s.label}">공개</span> <span th:text="${counts[s.name()]}">0</span>
             </a>
         </nav>
 
-        <p th:if="${posts.empty}" class="empty">글이 없습니다.</p>
+        <p th:if="${posts.empty}" class="empty" th:text="${#strings.isEmpty(q)} ? '글이 없습니다.' : '검색 결과가 없습니다.'">글이 없습니다.</p>
 
         <table class="manage-table" th:unless="${posts.empty}">
             <thead>
@@ -50,17 +60,20 @@
                           class="inline">
                         <input type="hidden" name="status" th:value="${p.public} ? 'PRIVATE' : 'PUBLIC'">
                         <input type="hidden" name="filter" th:value="${status}">
+                        <input type="hidden" name="q" th:value="${q}">
                         <button type="submit" class="btn btn-sm" th:text="${p.public} ? '비공개로' : '공개로'">비공개로</button>
                     </form>
                     <form th:if="${isAdmin and p.public}" th:action="@{/manage/posts/{id}/notice(id=${p.id})}"
                           method="post" class="inline">
                         <input type="hidden" name="notice" th:value="${!p.notice}">
                         <input type="hidden" name="filter" th:value="${status}">
+                        <input type="hidden" name="q" th:value="${q}">
                         <button type="submit" class="btn btn-sm" th:text="${p.notice} ? '공지 해제' : '공지 등록'">공지 등록</button>
                     </form>
                     <form th:action="@{/manage/posts/{id}/delete(id=${p.id})}" method="post" class="inline"
                           onsubmit="return confirm('정말 삭제할까요? 되돌릴 수 없어요.');">
                         <input type="hidden" name="filter" th:value="${status}">
+                        <input type="hidden" name="q" th:value="${q}">
                         <button type="submit" class="btn btn-sm btn-danger">삭제</button>
                     </form>
                 </td>
@@ -70,7 +83,7 @@
 
         <nav class="pagination" th:if="${posts.totalPages > 1}">
             <a th:each="i : ${#numbers.sequence(0, posts.totalPages - 1)}"
-               th:href="@{/manage(page=${i}, status=${status})}"
+               th:href="@{/manage(page=${i}, status=${status}, q=${#strings.isEmpty(q) ? null : q})}"
                th:text="${i + 1}"
                th:classappend="${i == posts.number} ? 'current'">1</a>
         </nav>

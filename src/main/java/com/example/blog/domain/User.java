@@ -35,6 +35,15 @@ public class User {
     @Column(nullable = false, columnDefinition = "bigint default 0")
     private long blogVisits;
 
+    /** 관리자가 이용을 정지한 계정 (로그인 불가) */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean banned;
+
+    @Column(length = 200)
+    private String banReason;
+
+    private LocalDateTime bannedAt;
+
     protected User() {
     }
 
@@ -56,6 +65,34 @@ public class User {
 
     public String getBlogIntro() {
         return blogIntro == null ? "" : blogIntro;
+    }
+
+    public void ban(String reason) {
+        this.banned = true;
+        this.banReason = reason;
+        this.bannedAt = LocalDateTime.now();
+    }
+
+    public void unban() {
+        this.banned = false;
+        this.banReason = null;
+        this.bannedAt = null;
+    }
+
+    public boolean isAdmin() {
+        return "ADMIN".equals(role);
+    }
+
+    public boolean isBanned() {
+        return banned;
+    }
+
+    public String getBanReason() {
+        return banReason;
+    }
+
+    public LocalDateTime getBannedAt() {
+        return bannedAt;
     }
 
     public long getBlogVisits() {
