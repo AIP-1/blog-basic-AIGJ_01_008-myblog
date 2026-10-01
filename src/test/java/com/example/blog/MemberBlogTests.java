@@ -315,6 +315,17 @@ class MemberBlogTests {
         assertThat(notices).doesNotContain("서버 점검 안내");
     }
 
+    @Test
+    void 로그인하면_사이드바에_내_블로그_카드가_나온다() throws Exception {
+        mvc.perform(post("/manage/blog").with(csrf()).with(user("alice")).param("title", "앨리스 노트").param("intro", ""));
+        String html = mvc.perform(get("/").with(user("alice"))).andReturn().getResponse().getContentAsString();
+        String card = html.substring(html.indexOf("my-blog"), html.indexOf("<h3>인기 글</h3>"));
+        assertThat(card).contains("앨리스 노트", "조회수", "구독자", "/manage", "/posts/new", "/blog/alice");
+
+        mvc.perform(get("/")).andExpect(content().string(containsString("로그인하면 나만의 블로그를 만들 수 있어요.")));
+        mvc.perform(post("/manage/blog").with(csrf()).with(user("alice")).param("title", "").param("intro", ""));
+    }
+
     /** 사이드바(인기 글 등)에도 글 제목이 나오므로 본문 영역만 잘라서 순서를 본다 */
     private static String mainContent(String html) {
         return html.substring(html.indexOf("<section class=\"content\">"));

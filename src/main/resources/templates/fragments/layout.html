@@ -72,9 +72,7 @@
                 <span class="when-light">🌙</span><span class="when-dark">☀️</span>
             </button>
             <a class="btn" th:href="@{/playground}">▶ 코드 실행기</a>
-            <a sec:authorize="isAuthenticated()" class="btn" th:href="@{/feed}">구독 피드</a>
             <a sec:authorize="isAuthenticated()" class="btn btn-primary" th:href="@{/posts/new}">글쓰기</a>
-            <a sec:authorize="isAuthenticated()" class="btn" th:href="@{/manage}">관리</a>
             <a sec:authorize="isAuthenticated()" class="who" th:href="@{/blog/{u}(u=${#authentication.name})}"
                title="내 블로그" sec:authentication="name">user</a>
             <form sec:authorize="isAuthenticated()" th:action="@{/logout}" method="post" class="inline">
@@ -91,6 +89,28 @@
         <input type="search" name="q" th:value="${q}" placeholder="작성자·제목·내용 검색" aria-label="검색어">
         <button type="submit" class="btn" aria-label="검색">검색</button>
     </form>
+
+    <!-- 내 블로그 카드: 로그인하면 내 블로그 요약과 바로가기, 아니면 로그인 안내 -->
+    <section class="side-box my-blog" th:if="${myBlog != null}">
+        <a class="my-blog-title" th:href="@{/blog/{u}(u=${myBlog.owner.username})}"
+           th:text="${myBlog.owner.blogTitle}">내 블로그</a>
+        <dl class="my-blog-stats">
+            <div><dt>조회수</dt><dd th:text="${myBlog.owner.blogVisits}">0</dd></div>
+            <div><dt>구독자</dt><dd th:text="${myBlog.subscriberCount}">0</dd></div>
+            <div><dt>글</dt><dd th:text="${myBlog.postCount}">0</dd></div>
+        </dl>
+        <div class="my-blog-actions">
+            <a class="btn btn-sm" th:href="@{/manage}">⚙️ 관리</a>
+            <a class="btn btn-sm btn-primary" th:href="@{/posts/new}">✏️ 글쓰기</a>
+        </div>
+    </section>
+    <section class="side-box my-blog" sec:authorize="!isAuthenticated()" th:if="${popularPosts != null}">
+        <p class="meta">로그인하면 나만의 블로그를 만들 수 있어요.</p>
+        <div class="my-blog-actions">
+            <a class="btn btn-sm" th:href="@{/login}">로그인</a>
+            <a class="btn btn-sm btn-primary" th:href="@{/signup}">회원가입</a>
+        </div>
+    </section>
 
     <section class="side-box" th:if="${popularPosts != null}">
         <h3>인기 글</h3>

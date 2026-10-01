@@ -59,6 +59,12 @@ public class PostController {
         return auth == null ? List.of() : categoryService.listOf(auth.getName());
     }
 
+    /** 사이드바의 '내 블로그' 카드 (로그인했을 때만) */
+    @ModelAttribute("myBlog")
+    public BlogService.MyBlog myBlog(Authentication auth) {
+        return auth == null ? null : blogService.myBlog(auth.getName()).orElse(null);
+    }
+
     /** 사이드바의 공지사항 */
     @ModelAttribute("notices")
     public List<Post> notices() {

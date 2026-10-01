@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /** 회원 개인 블로그와 구독 */
@@ -80,6 +81,16 @@ public class BlogService {
             result.add(new BlogCategory(BlogCategory.UNCATEGORIZED_ID, Post.UNCATEGORIZED, uncategorized, false));
         }
         return result;
+    }
+
+    /** 사이드바 '내 블로그' 카드: 블로그 주인, 공개 글 수, 구독자 수 */
+    public record MyBlog(User owner, long postCount, long subscriberCount) {
+    }
+
+    /** 계정을 찾을 수 없으면(예: 로그인 중 탈퇴) 카드 없이 화면을 보여 주도록 empty */
+    public Optional<MyBlog> myBlog(String username) {
+        return userRepository.findByUsername(username)
+                .map(owner -> new MyBlog(owner, publicPostCount(username), subscriberCount(owner)));
     }
 
     public long publicPostCount(String username) {
