@@ -16,8 +16,9 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/posts/new").authenticated()
+                        .requestMatchers("/manage/categories/**", "/manage/settings/**").hasRole("ADMIN")
                         .requestMatchers("/", "/css/**", "/img/**", "/login", "/signup", "/error", "/playground").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/posts/{id}").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/posts/{id}", "/uploads/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form
                         .loginPage("/login")

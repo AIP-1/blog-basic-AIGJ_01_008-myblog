@@ -1,6 +1,6 @@
 ---
 title: 5. 배열
-category: BASIC
+category: Java 입문
 seq: 5
 ---
 배열은 **같은 타입의 값 여러 개**를 하나로 묶은 것입니다. 크기는 만들 때 정해지고 바꿀 수 없어요.

@@ -1,6 +1,6 @@
 ---
 title: 12. 제네릭
-category: INTERMEDIATE
+category: Java 중급
 seq: 12
 ---
 제네릭은 **타입을 매개변수처럼** 다루는 기능입니다. 컴파일 시점에 타입을 검사해서 형 변환 실수를 막아줘요.

@@ -13,7 +13,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:testdb")
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:testdb",
+        "blog.upload-dir=${java.io.tmpdir}/java-blog-test-uploads"})
 @AutoConfigureMockMvc
 class BlogApplicationTests {
 
@@ -66,7 +68,6 @@ class BlogApplicationTests {
     void 로그인_사용자는_글을_쓸_수_있다() throws Exception {
         mvc.perform(post("/posts/new").with(csrf())
                         .param("title", "테스트 글")
-                        .param("category", "FREE")
                         .param("content", "<script>alert(1)</script> **굵게**"))
                 .andExpect(status().is3xxRedirection());
 

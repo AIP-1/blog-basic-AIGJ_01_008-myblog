@@ -1,6 +1,6 @@
 ---
 title: 7. 클래스와 객체
-category: BASIC
+category: Java 입문
 seq: 7
 ---
 **클래스**는 설계도, **객체(인스턴스)**는 설계도로 만든 실체입니다.

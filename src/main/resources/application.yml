@@ -10,6 +10,10 @@ spring:
     open-in-view: true
   thymeleaf:
     cache: false
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
 
 server:
   # 클라우드(Render 등)는 PORT 환경변수로 포트를 알려준다
@@ -20,3 +24,5 @@ server:
 blog:
   # 배포 시에는 ADMIN_PASSWORD 환경변수로 반드시 바꿀 것
   admin-password: ${ADMIN_PASSWORD:admin1234}
+  # 글에 첨부한 이미지 저장 위치
+  upload-dir: ${UPLOAD_DIR:./data/uploads}

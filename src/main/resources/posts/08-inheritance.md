@@ -1,6 +1,6 @@
 ---
 title: 8. 상속과 다형성
-category: INTERMEDIATE
+category: Java 중급
 seq: 8
 ---
 ## 상속 (extends)

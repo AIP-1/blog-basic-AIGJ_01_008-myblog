@@ -1,9 +1,14 @@
 package com.example.blog.config;
 
+import com.example.blog.domain.BlogSettings;
 import com.example.blog.domain.Category;
 import com.example.blog.domain.Post;
+import com.example.blog.domain.PostStatus;
 import com.example.blog.domain.User;
+import com.example.blog.repository.BlogSettingsRepository;
+import com.example.blog.repository.CategoryRepository;
 import com.example.blog.repository.PostRepository;
+import com.example.blog.service.BlogSettingsService;
 import com.example.blog.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,10 +24,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * 처음 실행할 때 관리자 계정과 resources/posts/*.md 강좌 글을 DB 에 넣는다.
+ * 처음 실행할 때 관리자 계정, 기본 카테고리, 블로그 설정, resources/posts/*.md 강좌 글을 DB 에 넣는다.
  */
 @Component
 public class DataInitializer implements CommandLineRunner {
@@ -30,15 +36,21 @@ public class DataInitializer implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
 
     private static final String ADMIN_USERNAME = "admin";
+    private static final List<String> DEFAULT_CATEGORIES = List.of("Java 입문", "Java 중급", "자유");
 
     private final UserService userService;
     private final PostRepository postRepository;
+    private final CategoryRepository categoryRepository;
+    private final BlogSettingsRepository blogSettingsRepository;
     private final String adminPassword;
 
     public DataInitializer(UserService userService, PostRepository postRepository,
+                           CategoryRepository categoryRepository, BlogSettingsRepository blogSettingsRepository,
                            @Value("${blog.admin-password}") String adminPassword) {
         this.userService = userService;
         this.postRepository = postRepository;
+        this.categoryRepository = categoryRepository;
+        this.blogSettingsRepository = blogSettingsRepository;
         this.adminPassword = adminPassword;
     }
 
@@ -48,6 +60,15 @@ public class DataInitializer implements CommandLineRunner {
         User admin = userService.exists(ADMIN_USERNAME)
                 ? userService.get(ADMIN_USERNAME)
                 : userService.register(ADMIN_USERNAME, adminPassword, "ADMIN");
+
+        if (!blogSettingsRepository.existsById(BlogSettings.SINGLETON_ID)) {
+            blogSettingsRepository.save(new BlogSettings(BlogSettingsService.DEFAULT_TITLE, BlogSettingsService.DEFAULT_DESCRIPTION));
+        }
+        if (categoryRepository.count() == 0) {
+            for (int i = 0; i < DEFAULT_CATEGORIES.size(); i++) {
+                categoryRepository.save(new Category(DEFAULT_CATEGORIES.get(i), i + 1));
+            }
+        }
 
         if (postRepository.count() > 0) {
             return;
@@ -67,7 +88,7 @@ public class DataInitializer implements CommandLineRunner {
      * <pre>
      * ---
      * title: 제목
-     * category: BASIC
+     * category: Java 입문
      * seq: 1
      * ---
      * 본문(마크다운)
@@ -82,10 +103,13 @@ public class DataInitializer implements CommandLineRunner {
             meta.put(line.substring(0, colon).trim(), line.substring(colon + 1).trim());
         }
         String body = text.substring(end + 4).trim();
+        Category category = categoryRepository.findByName(meta.get("category"))
+                .orElseGet(() -> categoryRepository.save(new Category(meta.get("category"), (int) categoryRepository.count() + 1)));
         return new Post(
                 meta.get("title"),
                 body,
-                Category.valueOf(meta.get("category")),
+                category,
+                PostStatus.PUBLIC,
                 Integer.valueOf(meta.get("seq")),
                 author);
     }

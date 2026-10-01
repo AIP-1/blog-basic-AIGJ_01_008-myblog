@@ -9,6 +9,8 @@ import java.util.List;
 @Entity
 public class Post {
 
+    public static final String UNCATEGORIZED = "미분류";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -20,9 +22,13 @@ public class Post {
     @Column(nullable = false, length = 100000)
     private String content;
 
+    /** 카테고리가 삭제되면 null (미분류) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Category category;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private Category category;
+    private PostStatus status;
 
     /** 강좌 순서 (강좌 글만 값이 있음, 일반 글은 null) */
     private Integer seq;
@@ -34,6 +40,7 @@ public class Post {
     @OrderBy("id asc")
     private List<Comment> comments = new ArrayList<>();
 
+    /** 발행일 (임시저장 글은 마지막 저장 시각, 발행하는 순간 발행 시각으로 바뀜) */
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -43,10 +50,11 @@ public class Post {
     protected Post() {
     }
 
-    public Post(String title, String content, Category category, Integer seq, User author) {
+    public Post(String title, String content, Category category, PostStatus status, Integer seq, User author) {
         this.title = title;
         this.content = content;
         this.category = category;
+        this.status = status;
         this.seq = seq;
         this.author = author;
         this.createdAt = LocalDateTime.now();
@@ -60,8 +68,29 @@ public class Post {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void changeStatus(PostStatus newStatus) {
+        if (status == PostStatus.DRAFT && newStatus != PostStatus.DRAFT) {
+            // 임시저장 글을 발행하면 발행 시각을 작성일로 삼는다
+            this.createdAt = LocalDateTime.now();
+            this.updatedAt = this.createdAt;
+        }
+        this.status = newStatus;
+    }
+
     public boolean isWrittenBy(String username) {
         return author.getUsername().equals(username);
+    }
+
+    public boolean isPublic() {
+        return status == PostStatus.PUBLIC;
+    }
+
+    public boolean isDraft() {
+        return status == PostStatus.DRAFT;
+    }
+
+    public String getCategoryName() {
+        return category == null ? UNCATEGORIZED : category.getName();
     }
 
     public Long getId() {
@@ -78,6 +107,10 @@ public class Post {
 
     public Category getCategory() {
         return category;
+    }
+
+    public PostStatus getStatus() {
+        return status;
     }
 
     public Integer getSeq() {

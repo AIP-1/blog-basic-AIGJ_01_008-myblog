@@ -1,37 +1,168 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head(${postId == null} ? '새 글' : '글 수정')}"></head>
-<body>
+<body class="editor-page">
+<link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css">
 <header th:replace="~{fragments/layout :: header}"></header>
 
-<main class="container narrow">
-    <h1 th:text="${postId == null} ? '새 글 쓰기' : '글 수정'">새 글 쓰기</h1>
+<main class="container editor-wrap">
+    <details class="drafts" th:if="${drafts != null and !#lists.isEmpty(drafts)}">
+        <summary>임시저장 글 <strong th:text="${#lists.size(drafts)}">0</strong>개 이어서 쓰기</summary>
+        <ul>
+            <li th:each="d : ${drafts}">
+                <a th:href="@{/posts/{id}/edit(id=${d.id})}" th:text="${d.title}">제목</a>
+                <span class="meta" th:text="${#temporals.format(d.updatedAt, 'MM-dd HH:mm')}">날짜</span>
+            </li>
+        </ul>
+    </details>
 
-    <form th:object="${form}" method="post"
-          th:action="${postId == null} ? @{/posts/new} : @{/posts/{id}/edit(id=${postId})}" class="form">
-        <label>카테고리
-            <select th:field="*{category}">
-                <option th:each="c : ${categories}" th:value="${c}" th:text="${c.label}">카테고리</option>
+    <form id="post-form" th:object="${form}" method="post"
+          th:action="${postId == null} ? @{/posts/new} : @{/posts/{id}/edit(id=${postId})}">
+
+        <div class="editor-head">
+            <select th:field="*{categoryId}" class="editor-category" aria-label="카테고리">
+                <option value="">카테고리 (미분류)</option>
+                <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}">카테고리</option>
             </select>
-        </label>
+            <input type="text" th:field="*{title}" class="editor-title" placeholder="제목을 입력하세요" maxlength="200"
+                   autocomplete="off">
+            <p class="error" th:if="${#fields.hasErrors('title')}" th:errors="*{title}"></p>
+        </div>
 
-        <label>제목
-            <input type="text" th:field="*{title}" maxlength="200">
-        </label>
-        <p class="error" th:if="${#fields.hasErrors('title')}" th:errors="*{title}"></p>
-
-        <label>내용 <small>(마크다운 지원: <code>#</code> 제목, <code>```java</code> 코드 블록, <code>**굵게**</code>)</small>
-            <textarea th:field="*{content}" rows="20"></textarea>
-        </label>
+        <div id="editor"></div>
+        <textarea th:field="*{content}" hidden></textarea>
         <p class="error" th:if="${#fields.hasErrors('content')}" th:errors="*{content}"></p>
 
-        <div class="actions">
-            <button type="submit" class="btn btn-primary">저장</button>
-            <a class="btn" th:href="${postId == null} ? @{/} : @{/posts/{id}(id=${postId})}">취소</a>
+        <div class="publish-bar">
+            <div class="container publish-inner">
+                <span id="save-status" class="save-status"
+                      th:text="${savedAt != null} ? '임시저장됨 ' + ${#temporals.format(savedAt, 'HH:mm:ss')} : ''"></span>
+                <div class="publish-actions">
+                    <a class="btn" th:href="${postId == null} ? @{/} : @{/posts/{id}(id=${postId})}">나가기</a>
+                    <button type="button" id="save-draft" class="btn" th:if="${isDraft}">임시저장</button>
+                    <fieldset class="visibility">
+                        <label><input type="radio" th:field="*{status}" value="PUBLIC"> 공개</label>
+                        <label><input type="radio" th:field="*{status}" value="PRIVATE"> 비공개</label>
+                    </fieldset>
+                    <button type="submit" class="btn btn-primary" th:text="${isDraft} ? '발행' : '수정 완료'">발행</button>
+                </div>
+            </div>
         </div>
     </form>
 </main>
 
-<footer th:replace="~{fragments/layout :: footer}"></footer>
+<script src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
+<script src="https://uicdn.toast.com/editor/3.2.2/i18n/ko-kr.min.js"></script>
+<script th:inline="javascript">
+    const urls = {
+        draft: /*[[@{/posts/draft}]]*/ '/posts/draft',
+        upload: /*[[@{/api/uploads}]]*/ '/api/uploads',
+        postBase: /*[[@{/posts/}]]*/ '/posts/'
+    };
+    let postId = /*[[${postId}]]*/ null;
+    const isDraft = /*[[${isDraft}]]*/ true;
+
+    const form = document.getElementById('post-form');
+    const contentField = document.getElementById('content');
+    const titleField = document.getElementById('title');
+    const categoryField = document.getElementById('categoryId');
+    const statusLabel = document.getElementById('save-status');
+    const csrf = {
+        [document.querySelector('meta[name=_csrf_header]').content]: document.querySelector('meta[name=_csrf]').content
+    };
+
+    // ---- 에디터 ----
+    const editor = new toastui.Editor({
+        el: document.getElementById('editor'),
+        height: '620px',
+        initialEditType: 'wysiwyg',
+        previewStyle: 'vertical',
+        language: 'ko-KR',
+        initialValue: contentField.value,
+        placeholder: '내용을 입력하세요. 이미지는 끌어다 놓거나 붙여넣을 수 있어요.',
+        usageStatistics: false,
+        hooks: {addImageBlobHook: uploadImage}
+    });
+
+    async function uploadImage(blob, callback) {
+        const data = new FormData();
+        data.append('image', blob, blob.name || 'image.png');
+        setStatus('이미지 올리는 중...');
+        try {
+            const res = await fetch(urls.upload, {method: 'POST', headers: csrf, body: data});
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(body.error || '이미지를 올리지 못했어요.');
+            callback(body.url, (blob.name || '').replace(/\.[^.]+$/, ''));
+            setStatus('이미지를 올렸어요');
+        } catch (e) {
+            setStatus(e.message, true);
+        }
+    }
+
+    // ---- 임시저장 (새 글·임시저장 글에서만) ----
+    let dirty = false;
+    let submitting = false;
+    const markDirty = () => {
+        dirty = true;
+        if (isDraft) setStatus('저장되지 않은 변경사항');
+    };
+    editor.on('change', markDirty);
+    titleField.addEventListener('input', markDirty);
+    categoryField.addEventListener('change', markDirty);
+
+    async function saveDraft(manual) {
+        if (!isDraft || submitting) return;
+        const content = editor.getMarkdown();
+        if (!manual && (!dirty || (!titleField.value.trim() && !content.trim()))) return;
+        dirty = false;
+        setStatus('저장 중...');
+        try {
+            const res = await fetch(urls.draft, {
+                method: 'POST',
+                headers: {...csrf, 'Content-Type': 'application/json'},
+                body: JSON.stringify({id: postId, title: titleField.value, categoryId: categoryField.value || null, content})
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(body.error || '임시저장하지 못했어요.');
+            if (!postId) {
+                // 처음 저장되면 이 글의 수정 주소로 바꿔서, 발행 시 같은 글이 발행되게 한다
+                postId = body.id;
+                form.action = urls.postBase + postId + '/edit';
+                history.replaceState(null, '', form.action);
+            }
+            setStatus('임시저장됨 ' + body.savedAt);
+        } catch (e) {
+            dirty = true;
+            setStatus(e.message, true);
+        }
+    }
+
+    const draftButton = document.getElementById('save-draft');
+    if (draftButton) draftButton.addEventListener('click', () => saveDraft(true));
+    if (isDraft) setInterval(() => saveDraft(false), 15000);
+
+    document.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            saveDraft(true);
+        }
+    });
+
+    form.addEventListener('submit', () => {
+        submitting = true;
+        contentField.value = editor.getMarkdown();
+    });
+    window.addEventListener('beforeunload', e => {
+        if (dirty && !submitting) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+
+    function setStatus(text, isError) {
+        statusLabel.textContent = text;
+        statusLabel.classList.toggle('error-text', !!isError);
+    }
+</script>
 </body>
 </html>

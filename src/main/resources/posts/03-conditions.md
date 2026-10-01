@@ -1,6 +1,6 @@
 ---
 title: 3. 연산자와 조건문
-category: BASIC
+category: Java 입문
 seq: 3
 ---
 ## 주요 연산자

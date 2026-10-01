@@ -1,6 +1,6 @@
 ---
 title: 10. 컬렉션 (List, Set, Map)
-category: INTERMEDIATE
+category: Java 중급
 seq: 10
 ---
 배열은 크기가 고정이지만, **컬렉션**은 크기가 자유롭게 늘어나고 다양한 기능을 제공합니다.

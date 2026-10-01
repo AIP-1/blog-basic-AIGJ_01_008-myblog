@@ -1,6 +1,6 @@
 ---
 title: 9. 인터페이스와 추상 클래스
-category: INTERMEDIATE
+category: Java 중급
 seq: 9
 ---
 ## 추상 클래스

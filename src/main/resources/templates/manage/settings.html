@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('블로그 설정')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container manage-layout">
+    <nav th:replace="~{fragments/layout :: manageNav}"></nav>
+
+    <section class="content">
+        <h1>블로그 설정</h1>
+        <p class="notice" th:if="${message}" th:text="${message}"></p>
+        <p class="error-box" th:if="${error}" th:text="${error}"></p>
+
+        <form th:action="@{/manage/settings}" method="post" class="form">
+            <label>블로그 이름
+                <input type="text" name="title" th:value="${blog.title}" maxlength="50" required>
+            </label>
+            <label>블로그 소개 <small>(사이드바와 링크 미리보기에 보여요)</small>
+                <textarea name="description" rows="4" maxlength="300" th:text="${blog.description}"></textarea>
+            </label>
+            <div class="actions">
+                <button type="submit" class="btn btn-primary">저장</button>
+            </div>
+        </form>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

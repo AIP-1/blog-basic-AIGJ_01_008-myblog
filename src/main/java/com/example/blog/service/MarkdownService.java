@@ -30,6 +30,21 @@ public class MarkdownService {
         return renderer.render(parser.parse(markdown));
     }
 
+    /** 목록 썸네일용: 본문의 첫 번째 이미지 주소 (내 서버 /uploads 이미지 또는 https 이미지만) */
+    public String firstImage(String markdown) {
+        String[] found = new String[1];
+        parser.parse(markdown).accept(new AbstractVisitor() {
+            @Override
+            public void visit(Image image) {
+                String url = image.getDestination();
+                if (found[0] == null && url != null && (url.startsWith("/uploads/") || url.startsWith("https://"))) {
+                    found[0] = url;
+                }
+            }
+        });
+        return found[0];
+    }
+
     /** 공유 미리보기용 요약: 본문 문단의 글자만 모은 앞부분 (제목·코드·표·목록 제외) */
     public String summary(String markdown, int maxLength) {
         StringBuilder text = new StringBuilder();

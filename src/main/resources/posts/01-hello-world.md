@@ -1,6 +1,6 @@
 ---
 title: 1. Java 설치와 Hello World
-category: BASIC
+category: Java 입문
 seq: 1
 ---
 Java는 **한 번 작성하면 어디서나 실행되는(Write Once, Run Anywhere)** 객체지향 언어입니다. 소스 코드(`.java`)를 컴파일하면 바이트코드(`.class`)가 되고, 이것을 **JVM**이 실행합니다.

@@ -1,6 +1,6 @@
 ---
 title: 11. 예외 처리
-category: INTERMEDIATE
+category: Java 중급
 seq: 11
 ---
 프로그램 실행 중 발생하는 오류를 **예외(Exception)**라고 합니다. 예외를 처리하지 않으면 프로그램이 종료돼요.

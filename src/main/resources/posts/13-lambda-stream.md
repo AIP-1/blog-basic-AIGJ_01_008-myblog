@@ -1,6 +1,6 @@
 ---
 title: 13. 람다와 스트림
-category: INTERMEDIATE
+category: Java 중급
 seq: 13
 ---
 ## 람다식

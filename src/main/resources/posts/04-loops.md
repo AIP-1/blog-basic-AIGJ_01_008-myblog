@@ -1,6 +1,6 @@
 ---
 title: 4. 반복문
-category: BASIC
+category: Java 입문
 seq: 4
 ---
 ## for 문

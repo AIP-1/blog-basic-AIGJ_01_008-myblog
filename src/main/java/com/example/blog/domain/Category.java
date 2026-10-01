@@ -1,17 +1,47 @@
 package com.example.blog.domain;
 
-public enum Category {
-    BASIC("Java 입문"),
-    INTERMEDIATE("Java 중급"),
-    FREE("자유");
+import jakarta.persistence.*;
 
-    private final String label;
+/** 관리 페이지에서 추가·수정·삭제할 수 있는 카테고리 */
+@Entity
+public class Category {
 
-    Category(String label) {
-        this.label = label;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true, length = 30)
+    private String name;
+
+    /** 화면에 보이는 순서 (작을수록 위) */
+    @Column(nullable = false)
+    private int sortOrder;
+
+    protected Category() {
     }
 
-    public String getLabel() {
-        return label;
+    public Category(String name, int sortOrder) {
+        this.name = name;
+        this.sortOrder = sortOrder;
+    }
+
+    public void rename(String name) {
+        this.name = name;
+    }
+
+    public void changeOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getSortOrder() {
+        return sortOrder;
     }
 }

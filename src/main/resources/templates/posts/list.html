@@ -11,8 +11,8 @@
         <form class="search" th:action="@{/}" method="get">
             <select name="category">
                 <option value="">전체</option>
-                <option th:each="c : ${categories}" th:value="${c}" th:text="${c.label}"
-                        th:selected="${c == category}">카테고리</option>
+                <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}"
+                        th:selected="${c.id == category}">카테고리</option>
             </select>
             <input type="text" name="q" th:value="${q}" placeholder="제목·내용 검색">
             <button type="submit" class="btn">검색</button>
@@ -21,15 +21,20 @@
         <p th:if="${posts.empty}" class="empty">글이 없습니다.</p>
 
         <ul class="post-list">
-            <li th:each="p : ${posts}">
-                <span class="badge" th:classappend="${p.category.name().toLowerCase()}"
-                      th:text="${p.category.label}">카테고리</span>
-                <a class="title" th:href="@{/posts/{id}(id=${p.id})}" th:text="${p.title}">제목</a>
-                <div class="meta">
-                    <span th:text="${p.author.username}">작성자</span> ·
-                    <span th:text="${#temporals.format(p.createdAt, 'yyyy-MM-dd')}">날짜</span> ·
-                    댓글 <span th:text="${p.comments.size()}">0</span>
+            <li th:each="p : ${posts}" th:with="thumb=${@markdownService.firstImage(p.content)}">
+                <div class="post-text">
+                    <span class="badge" th:text="${p.categoryName}">카테고리</span>
+                    <a class="title" th:href="@{/posts/{id}(id=${p.id})}" th:text="${p.title}">제목</a>
+                    <p class="excerpt" th:text="${@markdownService.summary(p.content, 110)}">요약</p>
+                    <div class="meta">
+                        <span th:text="${p.author.username}">작성자</span> ·
+                        <span th:text="${#temporals.format(p.createdAt, 'yyyy-MM-dd')}">날짜</span> ·
+                        댓글 <span th:text="${p.comments.size()}">0</span>
+                    </div>
                 </div>
+                <a th:if="${thumb != null}" class="thumb" th:href="@{/posts/{id}(id=${p.id})}">
+                    <img th:src="${thumb}" alt="" loading="lazy">
+                </a>
             </li>
         </ul>
 

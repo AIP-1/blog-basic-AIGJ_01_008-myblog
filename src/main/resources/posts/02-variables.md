@@ -1,6 +1,6 @@
 ---
 title: 2. 변수와 자료형
-category: BASIC
+category: Java 입문
 seq: 2
 ---
 변수는 값을 저장하는 이름 붙은 공간입니다. Java는 **타입을 반드시 지정**하는 언어예요.
