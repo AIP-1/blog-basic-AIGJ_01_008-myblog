@@ -2,12 +2,9 @@ package com.example.blog.service;
 
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.tables.TablesExtension;
-import org.commonmark.node.FencedCodeBlock;
-import org.commonmark.node.IndentedCodeBlock;
-import org.commonmark.node.Node;
+import org.commonmark.node.*;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
-import org.commonmark.renderer.text.TextContentRenderer;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,7 +14,6 @@ public class MarkdownService {
 
     private final Parser parser;
     private final HtmlRenderer renderer;
-    private final TextContentRenderer textRenderer;
 
     public MarkdownService() {
         List<Extension> extensions = List.of(TablesExtension.create());
@@ -28,25 +24,37 @@ public class MarkdownService {
                 .escapeHtml(true)
                 .sanitizeUrls(true)
                 .build();
-        this.textRenderer = TextContentRenderer.builder().extensions(extensions).build();
     }
 
     public String toHtml(String markdown) {
         return renderer.render(parser.parse(markdown));
     }
 
-    /** 공유 미리보기용 요약: 코드 블록을 빼고 마크다운 기호를 없앤 앞부분 */
+    /** 공유 미리보기용 요약: 본문 문단의 글자만 모은 앞부분 (제목·코드·표·목록 제외) */
     public String summary(String markdown, int maxLength) {
-        Node document = parser.parse(markdown);
-        Node node = document.getFirstChild();
-        while (node != null) {
-            Node next = node.getNext();
-            if (node instanceof FencedCodeBlock || node instanceof IndentedCodeBlock) {
-                node.unlink();
+        StringBuilder text = new StringBuilder();
+        for (Node block = parser.parse(markdown).getFirstChild(); block != null; block = block.getNext()) {
+            if (block instanceof Paragraph || block instanceof BlockQuote) {
+                block.accept(new AbstractVisitor() {
+                    @Override
+                    public void visit(Text node) {
+                        text.append(node.getLiteral());
+                    }
+
+                    @Override
+                    public void visit(Code node) {
+                        text.append(node.getLiteral());
+                    }
+
+                    @Override
+                    public void visit(SoftLineBreak node) {
+                        text.append(' ');
+                    }
+                });
+                text.append(' ');
             }
-            node = next;
         }
-        String text = textRenderer.render(document).replaceAll("\\s+", " ").trim();
-        return text.length() <= maxLength ? text : text.substring(0, maxLength).trim() + "…";
+        String result = text.toString().replaceAll("\\s+", " ").trim();
+        return result.length() <= maxLength ? result : result.substring(0, maxLength).trim() + "…";
     }
 }
