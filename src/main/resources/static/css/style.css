@@ -152,3 +152,21 @@ button:disabled { opacity: .6; cursor: wait; }
 /* 로고 옆 팀/이름 */
 .brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .team { color: var(--muted); font-size: .85rem; }
+
+/* 공유 버튼 */
+.share {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-top: 40px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: #fafaf9;
+}
+.share-label { font-weight: 600; margin-right: 4px; }
+.share-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+    border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--text);
+    font: inherit; font-size: .85rem; cursor: pointer; text-decoration: none;
+}
+.share-btn:hover { background: #fff7ed; border-color: #fdba74; text-decoration: none; }
+.share-btn svg { width: 16px; height: 16px; fill: currentColor; }
+.share-btn svg[fill="none"] { fill: none; }
+.share-toast { font-size: .85rem; color: #166534; opacity: 0; transition: opacity .2s; }
+.share-toast.show { opacity: 1; }
+.share + .prev-next { margin-top: 24px; }

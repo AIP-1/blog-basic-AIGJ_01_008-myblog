@@ -7,6 +7,24 @@
     <meta name="_csrf" th:content="${_csrf?.token}">
     <meta name="_csrf_header" th:content="${_csrf?.headerName}">
     <title th:text="${title} + ' · Java 블로그'">Java 블로그</title>
+
+    <!-- 링크 공유 시 미리보기 카드 (카카오톡, 페이스북, X, 슬랙 등) -->
+    <th:block th:with="desc=${summary ?: 'Java 입문·중급 강좌와 브라우저에서 바로 돌려보는 코드 실행기가 있는 블로그입니다.'}">
+        <meta name="description" th:content="${desc}">
+        <meta property="og:site_name" content="Java 블로그">
+        <meta property="og:type" th:content="${summary != null} ? 'article' : 'website'">
+        <meta property="og:title" th:content="${title}">
+        <meta property="og:description" th:content="${desc}">
+        <meta property="og:url" th:if="${currentUrl != null}" th:content="${currentUrl}">
+        <meta property="og:image" th:if="${ogImage != null}" th:content="${ogImage}">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:locale" content="ko_KR">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" th:content="${title}">
+        <meta name="twitter:description" th:content="${desc}">
+        <meta name="twitter:image" th:if="${ogImage != null}" th:content="${ogImage}">
+    </th:block>
     <link rel="stylesheet" th:href="@{/css/style.css}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
 </head>

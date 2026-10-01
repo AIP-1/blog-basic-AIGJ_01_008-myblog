@@ -36,6 +36,25 @@ class BlogApplicationTests {
     }
 
     @Test
+    void 글_상세에_공유_버튼과_미리보기_태그가_있다() throws Exception {
+        mvc.perform(get("/posts/1"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("<meta property=\"og:title\" content=\"1. Java 설치와 Hello World\">")))
+                .andExpect(content().string(containsString("<meta property=\"og:url\" content=\"http://localhost/posts/1\">")))
+                .andExpect(content().string(containsString("<meta property=\"og:image\" content=\"http://localhost/img/og-default.png\">")))
+                // 요약에는 코드와 마크다운 기호가 없어야 한다
+                .andExpect(content().string(containsString("<meta property=\"og:description\" content=\"Java는 한 번 작성하면")))
+                .andExpect(content().string(containsString("https://twitter.com/intent/tweet?text=")))
+                .andExpect(content().string(containsString("&amp;url=http://localhost/posts/1")))
+                .andExpect(content().string(containsString("https://www.facebook.com/sharer/sharer.php?u=http://localhost/posts/1")));
+    }
+
+    @Test
+    void 미리보기_이미지는_로그인_없이_열린다() throws Exception {
+        mvc.perform(get("/img/og-default.png")).andExpect(status().isOk());
+    }
+
+    @Test
     void 비로그인_사용자는_글쓰기시_로그인으로_이동한다() throws Exception {
         mvc.perform(get("/posts/new"))
                 .andExpect(status().is3xxRedirection())

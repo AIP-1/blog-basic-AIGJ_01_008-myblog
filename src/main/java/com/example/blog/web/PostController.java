@@ -46,6 +46,7 @@ public class PostController {
         Post post = postService.get(id);
         model.addAttribute("post", post);
         model.addAttribute("html", markdownService.toHtml(post.getContent()));
+        model.addAttribute("summary", markdownService.summary(post.getContent(), 150));
         model.addAttribute("canEdit", postService.canEdit(post, auth));
         model.addAttribute("prev", postService.previous(post).orElse(null));
         model.addAttribute("next", postService.next(post).orElse(null));
