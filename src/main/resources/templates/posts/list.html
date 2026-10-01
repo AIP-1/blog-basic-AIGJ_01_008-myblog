@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('홈')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container layout">
+    <aside th:replace="~{fragments/layout :: curriculum}"></aside>
+
+    <section class="content">
+        <form class="search" th:action="@{/}" method="get">
+            <select name="category">
+                <option value="">전체</option>
+                <option th:each="c : ${categories}" th:value="${c}" th:text="${c.label}"
+                        th:selected="${c == category}">카테고리</option>
+            </select>
+            <input type="text" name="q" th:value="${q}" placeholder="제목·내용 검색">
+            <button type="submit" class="btn">검색</button>
+        </form>
+
+        <p th:if="${posts.empty}" class="empty">글이 없습니다.</p>
+
+        <ul class="post-list">
+            <li th:each="p : ${posts}">
+                <span class="badge" th:classappend="${p.category.name().toLowerCase()}"
+                      th:text="${p.category.label}">카테고리</span>
+                <a class="title" th:href="@{/posts/{id}(id=${p.id})}" th:text="${p.title}">제목</a>
+                <div class="meta">
+                    <span th:text="${p.author.username}">작성자</span> ·
+                    <span th:text="${#temporals.format(p.createdAt, 'yyyy-MM-dd')}">날짜</span> ·
+                    댓글 <span th:text="${p.comments.size()}">0</span>
+                </div>
+            </li>
+        </ul>
+
+        <nav class="pagination" th:if="${posts.totalPages > 1}">
+            <a th:each="i : ${#numbers.sequence(0, posts.totalPages - 1)}"
+               th:href="@{/(page=${i}, category=${category}, q=${q})}"
+               th:text="${i + 1}"
+               th:classappend="${i == posts.number} ? 'current'">1</a>
+        </nav>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

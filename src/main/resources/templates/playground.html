@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('코드 실행기')}"></head>
+<body>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container playground">
+    <div class="pg-head">
+        <h1>Java 코드 실행기</h1>
+        <div class="pg-toolbar">
+            <select id="example">
+                <option value="">예제 불러오기</option>
+                <option value="hello">Hello World</option>
+                <option value="snippet">class 없이 바로 실행</option>
+                <option value="loop">구구단</option>
+                <option value="scanner">입력 받기 (Scanner)</option>
+                <option value="stream">스트림</option>
+                <option value="exception">예외 발생</option>
+            </select>
+            <button id="run" class="btn btn-primary" sec:authorize="isAuthenticated()">▶ 실행 <small>(Ctrl+Enter)</small></button>
+            <a class="btn btn-primary" sec:authorize="!isAuthenticated()" th:href="@{/login}">로그인하고 실행하기</a>
+        </div>
+    </div>
+    <p class="hint">
+        <code>class</code> 없이 문장만 입력하면 자동으로 <code>main</code> 메서드 안에서 실행돼요.
+        실행 시간은 5초, 메모리는 64MB로 제한되고 파일·네트워크 접근은 차단됩니다.
+    </p>
+
+    <div class="pg-grid">
+        <section class="pg-editor">
+            <textarea id="code"></textarea>
+        </section>
+        <section class="pg-side">
+            <label for="stdin">입력 (System.in)</label>
+            <textarea id="stdin" rows="4" placeholder="Scanner 로 읽을 값을 한 줄씩 입력"></textarea>
+
+            <div class="pg-result-head">
+                <span>실행 결과</span>
+                <span id="status" class="pg-status"></span>
+            </div>
+            <pre id="output" class="pg-output">실행 버튼을 누르면 결과가 여기에 나와요.</pre>
+        </section>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script th:inline="javascript">
+    const EXAMPLES = {
+        hello: `public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+    }
+}`,
+        snippet: `// class 와 main 없이 바로 써도 됩니다
+int sum = 0;
+for (int i = 1; i <= 10; i++) {
+    sum += i;
+}
+System.out.println("1부터 10까지 합: " + sum);`,
+        loop: `for (int dan = 2; dan <= 3; dan++) {
+    for (int i = 1; i <= 9; i++) {
+        System.out.println(dan + " x " + i + " = " + (dan * i));
+    }
+    System.out.println();
+}`,
+        scanner: `// 오른쪽 '입력' 칸에 이름과 나이를 줄바꿈으로 입력하세요
+Scanner sc = new Scanner(System.in);
+String name = sc.nextLine();
+int age = sc.nextInt();
+System.out.println(name + "님은 내년에 " + (age + 1) + "살입니다.");`,
+        stream: `List<String> names = List.of("kim", "lee", "park", "choi", "jung");
+
+List<String> result = names.stream()
+        .filter(n -> n.length() >= 4)
+        .map(String::toUpperCase)
+        .sorted()
+        .toList();
+
+System.out.println(result);`,
+        exception: `int[] arr = {1, 2, 3};
+try {
+    System.out.println(arr[5]);
+} catch (ArrayIndexOutOfBoundsException e) {
+    System.out.println("잡은 예외: " + e.getMessage());
+}
+// 잡지 않은 예외는 실행 결과에 빨간색으로 표시돼요
+String s = null;
+System.out.println(s.length());`
+    };
+    const STATUS = {
+        OK: ['성공', 'ok'],
+        COMPILE_ERROR: ['컴파일 오류', 'fail'],
+        RUNTIME_ERROR: ['실행 오류', 'fail'],
+        TIMEOUT: ['시간 초과', 'fail'],
+        BUSY: ['대기', 'fail'],
+        ERROR: ['오류', 'fail']
+    };
+
+    const editor = CodeMirror.fromTextArea(document.getElementById('code'), {
+        mode: 'text/x-java',
+        lineNumbers: true,
+        indentUnit: 4,
+        tabSize: 4,
+        matchBrackets: true,
+        autoCloseBrackets: true,
+        extraKeys: {
+            'Ctrl-Enter': run,
+            'Cmd-Enter': run,
+            Tab: cm => cm.replaceSelection('    ')
+        }
+    });
+
+    // 강좌 글의 '실행해보기' 버튼에서 넘어온 코드가 있으면 불러온다
+    let initial = EXAMPLES.hello;
+    try {
+        const passed = sessionStorage.getItem('playground.code');
+        if (passed) {
+            initial = passed;
+            sessionStorage.removeItem('playground.code');
+        }
+    } catch (e) { /* 저장소 사용 불가 */ }
+    editor.setValue(initial);
+
+    document.getElementById('example').addEventListener('change', e => {
+        if (EXAMPLES[e.target.value]) editor.setValue(EXAMPLES[e.target.value]);
+        e.target.value = '';
+    });
+
+    const runButton = document.getElementById('run');
+    const output = document.getElementById('output');
+    const status = document.getElementById('status');
+    if (runButton) runButton.addEventListener('click', run);
+
+    async function run() {
+        if (!runButton || runButton.disabled) return;
+        runButton.disabled = true;
+        status.textContent = '실행 중...';
+        status.className = 'pg-status';
+        output.textContent = '';
+
+        try {
+            const res = await fetch(/*[[@{/playground/run}]]*/ '/playground/run', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [document.querySelector('meta[name=_csrf_header]').content]:
+                        document.querySelector('meta[name=_csrf]').content
+                },
+                body: JSON.stringify({code: editor.getValue(), input: document.getElementById('stdin').value})
+            });
+            if (res.redirected || !(res.headers.get('Content-Type') || '').includes('json')) {
+                throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+            }
+            show(await res.json());
+        } catch (e) {
+            status.textContent = '오류';
+            status.className = 'pg-status fail';
+            output.textContent = e.message;
+        } finally {
+            runButton.disabled = false;
+        }
+    }
+
+    function show(result) {
+        const [label, cls] = STATUS[result.status] || ['오류', 'fail'];
+        status.textContent = result.elapsedMs ? `${label} · ${result.elapsedMs}ms` : label;
+        status.className = 'pg-status ' + cls;
+
+        output.textContent = '';
+        if (result.output) output.append(result.output);
+        if (result.error) {
+            const err = document.createElement('span');
+            err.className = 'pg-error';
+            err.textContent = (result.output ? '\n' : '') + result.error;
+            output.append(err);
+        }
+        if (!result.output && !result.error) output.textContent = '(출력 없음)';
+    }
+</script>
+</body>
+</html>

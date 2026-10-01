@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:content="${_csrf?.token}">
+    <meta name="_csrf_header" th:content="${_csrf?.headerName}">
+    <title th:text="${title} + ' · Java 블로그'">Java 블로그</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+</head>
+
+<body>
+<header th:fragment="header" class="site-header">
+    <div class="container header-inner">
+        <div class="brand">
+            <a class="logo" th:href="@{/}">☕ Java 블로그</a>
+            <span class="team">2팀 AIGJ_01_008 박민수</span>
+        </div>
+        <nav class="nav">
+            <a class="btn" th:href="@{/playground}">▶ 코드 실행기</a>
+            <a sec:authorize="isAuthenticated()" class="btn btn-primary" th:href="@{/posts/new}">글쓰기</a>
+            <span sec:authorize="isAuthenticated()" class="who" sec:authentication="name">user</span>
+            <form sec:authorize="isAuthenticated()" th:action="@{/logout}" method="post" class="inline">
+                <button type="submit" class="btn">로그아웃</button>
+            </form>
+            <a sec:authorize="!isAuthenticated()" class="btn" th:href="@{/login}">로그인</a>
+            <a sec:authorize="!isAuthenticated()" class="btn btn-primary" th:href="@{/signup}">회원가입</a>
+        </nav>
+    </div>
+</header>
+
+<aside th:fragment="curriculum" class="sidebar">
+    <h3>Java 강좌 목차</h3>
+    <ol class="toc">
+        <li th:each="c : ${curriculum}"
+            th:classappend="${post != null and post.id == c.id} ? 'active'">
+            <a th:href="@{/posts/{id}(id=${c.id})}" th:text="${c.title}">제목</a>
+        </li>
+    </ol>
+</aside>
+
+<footer th:fragment="footer" class="site-footer">
+    <div class="container">Java 블로그 · Spring Boot</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</footer>
+</body>
+</html>

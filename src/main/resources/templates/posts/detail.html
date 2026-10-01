@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${post.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container layout">
+    <aside th:replace="~{fragments/layout :: curriculum}"></aside>
+
+    <article class="content">
+        <span class="badge" th:classappend="${post.category.name().toLowerCase()}"
+              th:text="${post.category.label}">카테고리</span>
+        <h1 th:text="${post.title}">제목</h1>
+        <div class="meta">
+            <span th:text="${post.author.username}">작성자</span> ·
+            <span th:text="${#temporals.format(post.createdAt, 'yyyy-MM-dd HH:mm')}">날짜</span>
+            <span th:if="${post.updatedAt.isAfter(post.createdAt)}">(수정됨)</span>
+        </div>
+
+        <div th:if="${canEdit}" class="actions">
+            <a class="btn" th:href="@{/posts/{id}/edit(id=${post.id})}">수정</a>
+            <form th:action="@{/posts/{id}/delete(id=${post.id})}" method="post" class="inline"
+                  onsubmit="return confirm('정말 삭제할까요?');">
+                <button type="submit" class="btn btn-danger">삭제</button>
+            </form>
+        </div>
+
+        <div class="markdown" th:utext="${html}">본문</div>
+
+        <nav class="prev-next" th:if="${prev != null or next != null}">
+            <a th:if="${prev != null}" th:href="@{/posts/{id}(id=${prev.id})}">← <span th:text="${prev.title}"></span></a>
+            <span th:unless="${prev != null}"></span>
+            <a th:if="${next != null}" th:href="@{/posts/{id}(id=${next.id})}"><span th:text="${next.title}"></span> →</a>
+        </nav>
+
+        <section id="comments" class="comments">
+            <h3>댓글 <span th:text="${post.comments.size()}">0</span></h3>
+            <ul>
+                <li th:each="c : ${post.comments}">
+                    <div class="meta">
+                        <strong th:text="${c.author.username}">작성자</strong> ·
+                        <span th:text="${#temporals.format(c.createdAt, 'yyyy-MM-dd HH:mm')}">날짜</span>
+                        <form sec:authorize="isAuthenticated()"
+                              th:if="${c.author.username == #authentication.name or #authorization.expression('hasRole(''ADMIN'')')}"
+                              th:action="@{/comments/{id}/delete(id=${c.id})}" method="post" class="inline">
+                            <button type="submit" class="link">삭제</button>
+                        </form>
+                    </div>
+                    <p th:text="${c.content}">댓글 내용</p>
+                </li>
+            </ul>
+            <form sec:authorize="isAuthenticated()" th:action="@{/posts/{id}/comments(id=${post.id})}" method="post"
+                  class="comment-form">
+                <textarea name="content" rows="3" maxlength="1000" placeholder="댓글을 입력하세요" required></textarea>
+                <button type="submit" class="btn btn-primary">등록</button>
+            </form>
+            <p sec:authorize="!isAuthenticated()" class="hint">
+                댓글을 쓰려면 <a th:href="@{/login}">로그인</a>하세요.
+            </p>
+        </section>
+    </article>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<script th:inline="javascript">
+    // Java 코드 블록마다 '실행해보기' 버튼을 붙여 코드 실행기로 보낸다
+    const playgroundUrl = /*[[@{/playground}]]*/ '/playground';
+    document.querySelectorAll('.markdown pre > code.language-java').forEach(code => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'run-btn';
+        button.textContent = '▶ 실행해보기';
+        button.addEventListener('click', () => {
+            try { sessionStorage.setItem('playground.code', code.textContent); } catch (e) { /* 무시 */ }
+            location.href = playgroundUrl;
+        });
+        code.parentElement.classList.add('runnable');
+        code.parentElement.appendChild(button);
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    # 프로젝트 폴더의 data/ 아래에 파일로 저장 → 재시작해도 글이 유지됨
+    url: jdbc:h2:file:./data/blog;MODE=MySQL
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: true
+  thymeleaf:
+    cache: false
+
+server:
+  # 클라우드(Render 등)는 PORT 환경변수로 포트를 알려준다
+  port: ${PORT:8080}
+  # HTTPS 프록시 뒤에서 리다이렉트 주소가 https 로 만들어지도록
+  forward-headers-strategy: framework
+
+blog:
+  # 배포 시에는 ADMIN_PASSWORD 환경변수로 반드시 바꿀 것
+  admin-password: ${ADMIN_PASSWORD:admin1234}

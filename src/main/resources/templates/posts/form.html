@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${postId == null} ? '새 글' : '글 수정')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container narrow">
+    <h1 th:text="${postId == null} ? '새 글 쓰기' : '글 수정'">새 글 쓰기</h1>
+
+    <form th:object="${form}" method="post"
+          th:action="${postId == null} ? @{/posts/new} : @{/posts/{id}/edit(id=${postId})}" class="form">
+        <label>카테고리
+            <select th:field="*{category}">
+                <option th:each="c : ${categories}" th:value="${c}" th:text="${c.label}">카테고리</option>
+            </select>
+        </label>
+
+        <label>제목
+            <input type="text" th:field="*{title}" maxlength="200">
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('title')}" th:errors="*{title}"></p>
+
+        <label>내용 <small>(마크다운 지원: <code>#</code> 제목, <code>```java</code> 코드 블록, <code>**굵게**</code>)</small>
+            <textarea th:field="*{content}" rows="20"></textarea>
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('content')}" th:errors="*{content}"></p>
+
+        <div class="actions">
+            <button type="submit" class="btn btn-primary">저장</button>
+            <a class="btn" th:href="${postId == null} ? @{/} : @{/posts/{id}(id=${postId})}">취소</a>
+        </div>
+    </form>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>
