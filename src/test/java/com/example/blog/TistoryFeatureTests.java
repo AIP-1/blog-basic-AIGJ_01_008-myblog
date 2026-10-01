@@ -120,10 +120,10 @@ class TistoryFeatureTests {
     @Test
     void 관리_페이지는_내_글만_보여준다() throws Exception {
         saveDraft(null, "writer 전용 관리 글", "내용", "writer");
-        mvc.perform(get("/manage").with(user("other")))
+        mvc.perform(get("/manage/posts").with(user("other")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("writer 전용 관리 글"))));
-        mvc.perform(get("/manage").param("status", "DRAFT").with(user("writer")))
+        mvc.perform(get("/manage/posts").param("status", "DRAFT").with(user("writer")))
                 .andExpect(content().string(containsString("writer 전용 관리 글")));
     }
 

@@ -122,6 +122,20 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     long countByAuthorUsernameAndStatus(String username, PostStatus status);
 
+    /** 관리 통계: 최근 글 */
+    List<Post> findTop5ByAuthorUsernameOrderByCreatedAtDesc(String username);
+
+    /** 관리 통계: 내 글이 받은 좋아요 수 */
+    @Query("select count(l) from PostLike l where l.post.author.username = :username")
+    long countLikesReceived(@Param("username") String username);
+
+    /** 관리 통계: 내 글에 다른 사람이 단 댓글·답글 수 (삭제 표시된 것 제외) */
+    @Query("""
+            select count(c) from Comment c
+            where c.post.author.username = :username and c.deleted = false and c.author.username <> :username
+            """)
+    long countCommentsReceived(@Param("username") String username);
+
     /** 달력: 기간 안에 쓴 공개 글의 작성 시각 */
     @Query("""
             select p.createdAt from Post p

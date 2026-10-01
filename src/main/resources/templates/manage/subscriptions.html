@@ -15,30 +15,32 @@
         <p th:if="${#lists.isEmpty(subscriptions)}" class="empty">
             구독한 블로그가 없어요. <a th:href="@{/blogs}">회원 블로그 둘러보기 →</a></p>
 
-        <table class="manage-table" th:unless="${#lists.isEmpty(subscriptions)}">
-            <thead>
-            <tr>
-                <th>블로그</th>
-                <th>구독한 날</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="s : ${subscriptions}">
-                <td class="col-title">
-                    <a th:href="@{/blog/{u}(u=${s.blogOwner.username})}" th:text="${s.blogOwner.blogTitle}">블로그</a>
-                    <span class="meta" th:text="${s.blogOwner.username}">주인</span>
-                </td>
-                <td class="meta" th:text="${#temporals.format(s.createdAt, 'yyyy-MM-dd')}">날짜</td>
-                <td class="col-actions">
-                    <form th:action="@{/manage/subscriptions/{u}/delete(u=${s.blogOwner.username})}" method="post"
-                          class="inline">
-                        <button type="submit" class="btn btn-sm btn-danger">구독 취소</button>
-                    </form>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(subscriptions)}">
+            <table class="manage-table">
+                <thead>
+                <tr>
+                    <th>블로그</th>
+                    <th>구독한 날</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="s : ${subscriptions}">
+                    <td class="col-title">
+                        <a th:href="@{/blog/{u}(u=${s.blogOwner.username})}" th:text="${s.blogOwner.blogTitle}">블로그</a>
+                        <span class="meta" th:text="${s.blogOwner.username}">주인</span>
+                    </td>
+                    <td class="meta" th:text="${#temporals.format(s.createdAt, 'yyyy-MM-dd')}">날짜</td>
+                    <td class="col-actions">
+                        <form th:action="@{/manage/subscriptions/{u}/delete(u=${s.blogOwner.username})}" method="post"
+                              class="inline">
+                            <button type="submit" class="btn btn-sm btn-danger">구독 취소</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
     </section>
 </main>
 

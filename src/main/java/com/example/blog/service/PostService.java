@@ -44,19 +44,21 @@ public class PostService {
     private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
     private final BlockService blockService;
+    private final StatsService statsService;
     private final UserService userService;
     private final CategoryService categoryService;
 
     public PostService(PostRepository postRepository, CommentRepository commentRepository,
                        PostLikeRepository postLikeRepository, NotificationRepository notificationRepository,
                        NotificationService notificationService, BlockService blockService,
-                       UserService userService, CategoryService categoryService) {
+                       StatsService statsService, UserService userService, CategoryService categoryService) {
         this.postRepository = postRepository;
         this.commentRepository = commentRepository;
         this.postLikeRepository = postLikeRepository;
         this.notificationRepository = notificationRepository;
         this.notificationService = notificationService;
         this.blockService = blockService;
+        this.statsService = statsService;
         this.userService = userService;
         this.categoryService = categoryService;
     }
@@ -117,6 +119,7 @@ public class PostService {
             return;
         }
         post.increaseViewCount();
+        statsService.recordPostView(post.getAuthor().getUsername());
     }
 
     public List<Post> curriculum() {

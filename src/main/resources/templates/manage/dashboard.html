@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('통계')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container manage-layout">
+    <nav th:replace="~{fragments/layout :: manageNav}"></nav>
+
+    <section class="content" th:with="s=${stats}">
+        <div class="dash-head">
+            <h1>통계</h1>
+            <a th:href="@{/blog/{u}(u=${s.owner.username})}" th:text="${s.owner.blogTitle} + ' 가기 →'">내 블로그 가기 →</a>
+        </div>
+
+        <!-- 방문 요약 -->
+        <div class="stat-tiles">
+            <div class="stat-tile">
+                <span class="stat-label">오늘 방문</span>
+                <strong class="stat-value" th:text="${s.today.blogVisits}">0</strong>
+                <span class="stat-sub" th:with="diff=${s.today.blogVisits - s.yesterday.blogVisits}"
+                      th:text="${diff > 0} ? '어제보다 ▲ ' + ${diff} : (${diff < 0} ? '어제보다 ▼ ' + ${-diff} : '어제와 같아요')">어제와 같아요</span>
+            </div>
+            <div class="stat-tile">
+                <span class="stat-label">어제 방문</span>
+                <strong class="stat-value" th:text="${s.yesterday.blogVisits}">0</strong>
+            </div>
+            <div class="stat-tile">
+                <span class="stat-label">최근 7일 방문</span>
+                <strong class="stat-value" th:text="${s.weekVisits}">0</strong>
+                <span class="stat-sub" th:text="'글 조회 ' + ${s.weekViews}">글 조회 0</span>
+            </div>
+            <div class="stat-tile">
+                <span class="stat-label">누적 방문</span>
+                <strong class="stat-value" th:text="${s.owner.blogVisits}">0</strong>
+            </div>
+        </div>
+
+        <!-- 최근 7일 방문자 (한 계열이라 범례 없이 제목으로) -->
+        <section class="dash-section">
+            <h2>최근 7일 방문자</h2>
+            <p class="empty" th:if="${s.maxVisits == 0}">아직 이 기간에 방문 기록이 없어요. 다른 사람이 내 블로그나 글을 보면 쌓여요.</p>
+            <div class="bar-chart" th:unless="${s.maxVisits == 0}" role="img"
+                 th:attr="aria-label='최근 7일 방문자: ' + ${#strings.listJoin(s.days.![label() + ' ' + blogVisits + '명'], ', ')}">
+                <div class="bar-col" th:each="d, it : ${s.days}" tabindex="0"
+                     th:classappend="${it.last} ? 'is-today'">
+                    <span class="bar-value" th:if="${it.last or d.blogVisits == s.maxVisits}" th:text="${d.blogVisits}">5</span>
+                    <span class="bar" th:style="'height:' + ${d.percentOf(s.maxVisits)} + '%'"></span>
+                    <span class="bar-tip" role="tooltip">
+                        <strong th:text="${d.label()} + ' (' + ${d.weekday()} + ')'">10/1 (수)</strong>
+                        <span>방문 <b th:text="${d.blogVisits}">5</b></span>
+                        <span>글 조회 <b th:text="${d.postViews}">8</b></span>
+                    </span>
+                </div>
+            </div>
+            <div class="bar-axis" th:unless="${s.maxVisits == 0}">
+                <span th:each="d, it : ${s.days}" th:classappend="${it.last} ? 'is-today'"
+                      th:text="${it.last} ? '오늘' : ${d.label()} + ' ' + ${d.weekday()}">10/1 수</span>
+            </div>
+
+            <details class="table-view">
+                <summary>표로 보기</summary>
+                <div class="table-scroll">
+                    <table class="manage-table">
+                        <thead><tr><th>날짜</th><th class="num">블로그 방문</th><th class="num">글 조회</th></tr></thead>
+                        <tbody>
+                        <tr th:each="d : ${s.days}">
+                            <td th:text="${d.label()} + ' (' + ${d.weekday()} + ')'">10/1 (수)</td>
+                            <td class="num" th:text="${d.blogVisits}">0</td>
+                            <td class="num" th:text="${d.postViews}">0</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            <p class="hint">날짜별 통계는 이 기능을 넣은 날부터 쌓여요. 같은 사람의 반복 방문과 내 방문은 세지 않아요.</p>
+        </section>
+
+        <!-- 블로그 요약 -->
+        <div class="stat-tiles">
+            <div class="stat-tile">
+                <span class="stat-label">구독자</span>
+                <strong class="stat-value" th:text="${s.subscribers}">0</strong>
+            </div>
+            <div class="stat-tile">
+                <span class="stat-label">공개 글</span>
+                <strong class="stat-value" th:text="${s.publicPosts}">0</strong>
+            </div>
+            <div class="stat-tile">
+                <span class="stat-label">받은 좋아요</span>
+                <strong class="stat-value" th:text="${s.likesReceived}">0</strong>
+            </div>
+            <div class="stat-tile">
+                <span class="stat-label">받은 댓글</span>
+                <strong class="stat-value" th:text="${s.commentsReceived}">0</strong>
+            </div>
+        </div>
+
+        <!-- 최근 글 -->
+        <section class="dash-section">
+            <div class="dash-head">
+                <h2>최근 글</h2>
+                <a th:href="@{/manage/posts}">글 관리 →</a>
+            </div>
+            <p class="empty" th:if="${#lists.isEmpty(s.recentPosts)}">아직 쓴 글이 없어요. <a th:href="@{/posts/new}">첫 글 쓰기 →</a></p>
+            <div class="table-scroll" th:unless="${#lists.isEmpty(s.recentPosts)}">
+                <table class="manage-table">
+                    <thead>
+                    <tr><th>제목</th><th>상태</th><th class="num">방문</th><th class="num">좋아요</th><th class="num">댓글</th><th class="num">작성</th></tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${s.recentPosts}">
+                        <td class="col-title"><a th:href="@{/posts/{id}(id=${r.post.id})}" th:text="${r.post.title}">제목</a></td>
+                        <td><span class="status-chip" th:classappend="${r.post.status.name().toLowerCase()}"
+                                  th:text="${r.post.status.label}">공개</span></td>
+                        <td class="num" th:text="${r.post.viewCount}">0</td>
+                        <td class="num" th:text="${r.likes}">0</td>
+                        <td class="num" th:text="${r.comments}">0</td>
+                        <td class="num meta"><time th:datetime="${r.post.createdAt}" th:title="${@timeAgo.exact(r.post.createdAt)}"
+                                               th:text="${@timeAgo.format(r.post.createdAt)}">1일 전</time></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

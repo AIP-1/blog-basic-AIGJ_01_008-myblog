@@ -8,6 +8,7 @@ import com.example.blog.service.BlogService;
 import com.example.blog.service.BlogSettingsService;
 import com.example.blog.service.CategoryService;
 import com.example.blog.service.PostService;
+import com.example.blog.service.StatsService;
 import com.example.blog.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
@@ -20,7 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 티스토리 관리 화면처럼: 글·내 블로그·구독 관리(모든 사용자), 공용 카테고리·사이트 설정(관리자) */
+/** 티스토리 관리 화면처럼: 통계·글·내 블로그·구독·차단 관리(모든 사용자), 공용 카테고리·사이트 설정(관리자) */
 @Controller
 @RequestMapping("/manage")
 public class ManageController {
@@ -34,16 +35,18 @@ public class ManageController {
     private final BlogService blogService;
     private final UserService userService;
     private final BlockService blockService;
+    private final StatsService statsService;
 
     public ManageController(PostService postService, CategoryService categoryService,
                             BlogSettingsService blogSettingsService, BlogService blogService,
-                            UserService userService, BlockService blockService) {
+                            UserService userService, BlockService blockService, StatsService statsService) {
         this.postService = postService;
         this.categoryService = categoryService;
         this.blogSettingsService = blogSettingsService;
         this.blogService = blogService;
         this.userService = userService;
         this.blockService = blockService;
+        this.statsService = statsService;
     }
 
     @ModelAttribute("isAdmin")
@@ -51,9 +54,18 @@ public class ManageController {
         return postService.isAdmin(auth);
     }
 
-    // ===== 글 관리 =====
+    // ===== 통계 (블로그 관리 첫 화면) =====
 
     @GetMapping
+    public String dashboard(Authentication auth, Model model) {
+        model.addAttribute("menu", "stats");
+        model.addAttribute("stats", statsService.dashboard(auth.getName()));
+        return "manage/dashboard";
+    }
+
+    // ===== 글 관리 =====
+
+    @GetMapping("/posts")
     public String posts(@RequestParam(required = false) PostStatus status,
                         @RequestParam(defaultValue = "") String q,
                         @RequestParam(defaultValue = "0") int page,
@@ -111,7 +123,7 @@ public class ManageController {
         if (!q.isBlank()) {
             redirect.addAttribute("q", q);
         }
-        return "redirect:/manage";
+        return "redirect:/manage/posts";
     }
 
     // ===== 카테고리 관리: 공용(관리자) / 내 블로그(모든 사용자) =====

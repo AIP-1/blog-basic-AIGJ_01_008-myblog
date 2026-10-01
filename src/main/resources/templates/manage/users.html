@@ -20,47 +20,49 @@
 
         <p th:if="${users.empty}" class="empty">회원이 없습니다.</p>
 
-        <table class="manage-table" th:unless="${users.empty}">
-            <thead>
-            <tr>
-                <th>아이디</th>
-                <th>가입일</th>
-                <th>상태</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="u : ${users}">
-                <td class="col-title">
-                    <a th:href="@{/blog/{name}(name=${u.username})}" th:text="${u.username}">아이디</a>
-                    <span class="meta" th:if="${u.admin}">관리자</span>
-                </td>
-                <td class="meta" th:text="${#temporals.format(u.createdAt, 'yyyy-MM-dd')}">날짜</td>
-                <td>
-                    <span th:if="${u.banned}" class="status-chip banned-chip"
-                          th:title="${u.banReason}" th:text="'정지 · ' + ${#temporals.format(u.bannedAt, 'MM-dd')}">정지</span>
-                    <span th:unless="${u.banned}" class="status-chip public">정상</span>
-                    <div class="meta" th:if="${u.banned and u.banReason != null}" th:text="'사유: ' + ${u.banReason}">사유</div>
-                </td>
-                <td class="col-actions">
-                    <th:block th:unless="${u.admin}">
-                        <form th:unless="${u.banned}" th:action="@{/manage/users/{name}/ban(name=${u.username})}"
-                              method="post" class="ban-form" th:attr="data-name=${u.username}"
-                              onsubmit="return confirm(this.dataset.name + ' 님의 이용을 정지할까요?');">
-                            <input type="hidden" name="q" th:value="${q}">
-                            <input type="text" name="reason" maxlength="200" placeholder="정지 사유 (선택)" aria-label="정지 사유">
-                            <button type="submit" class="btn btn-sm btn-danger">정지</button>
-                        </form>
-                        <form th:if="${u.banned}" th:action="@{/manage/users/{name}/unban(name=${u.username})}"
-                              method="post" class="inline">
-                            <input type="hidden" name="q" th:value="${q}">
-                            <button type="submit" class="btn btn-sm">정지 해제</button>
-                        </form>
-                    </th:block>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+        <div class="table-scroll" th:unless="${users.empty}">
+            <table class="manage-table">
+                <thead>
+                <tr>
+                    <th>아이디</th>
+                    <th>가입일</th>
+                    <th>상태</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="u : ${users}">
+                    <td class="col-title">
+                        <a th:href="@{/blog/{name}(name=${u.username})}" th:text="${u.username}">아이디</a>
+                        <span class="meta" th:if="${u.admin}">관리자</span>
+                    </td>
+                    <td class="meta" th:text="${#temporals.format(u.createdAt, 'yyyy-MM-dd')}">날짜</td>
+                    <td>
+                        <span th:if="${u.banned}" class="status-chip banned-chip"
+                              th:title="${u.banReason}" th:text="'정지 · ' + ${#temporals.format(u.bannedAt, 'MM-dd')}">정지</span>
+                        <span th:unless="${u.banned}" class="status-chip public">정상</span>
+                        <div class="meta" th:if="${u.banned and u.banReason != null}" th:text="'사유: ' + ${u.banReason}">사유</div>
+                    </td>
+                    <td class="col-actions">
+                        <th:block th:unless="${u.admin}">
+                            <form th:unless="${u.banned}" th:action="@{/manage/users/{name}/ban(name=${u.username})}"
+                                  method="post" class="ban-form" th:attr="data-name=${u.username}"
+                                  onsubmit="return confirm(this.dataset.name + ' 님의 이용을 정지할까요?');">
+                                <input type="hidden" name="q" th:value="${q}">
+                                <input type="text" name="reason" maxlength="200" placeholder="정지 사유 (선택)" aria-label="정지 사유">
+                                <button type="submit" class="btn btn-sm btn-danger">정지</button>
+                            </form>
+                            <form th:if="${u.banned}" th:action="@{/manage/users/{name}/unban(name=${u.username})}"
+                                  method="post" class="inline">
+                                <input type="hidden" name="q" th:value="${q}">
+                                <button type="submit" class="btn btn-sm">정지 해제</button>
+                            </form>
+                        </th:block>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
 
         <nav class="pagination" th:if="${users.totalPages > 1}">
             <a th:each="i : ${#numbers.sequence(0, users.totalPages - 1)}"

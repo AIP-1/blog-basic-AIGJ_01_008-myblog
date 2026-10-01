@@ -15,28 +15,30 @@
 
         <p th:if="${#lists.isEmpty(blocks)}" class="empty">차단한 사람이 없어요.</p>
 
-        <table class="manage-table" th:unless="${#lists.isEmpty(blocks)}">
-            <thead>
-            <tr>
-                <th>아이디</th>
-                <th>차단한 날</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="b : ${blocks}">
-                <td class="col-title">
-                    <a th:href="@{/blog/{u}(u=${b.blocked.username})}" th:text="${b.blocked.username}">아이디</a>
-                </td>
-                <td class="meta" th:text="${#temporals.format(b.createdAt, 'yyyy-MM-dd')}">날짜</td>
-                <td class="col-actions">
-                    <form th:action="@{/manage/blocks/{u}/delete(u=${b.blocked.username})}" method="post" class="inline">
-                        <button type="submit" class="btn btn-sm">차단 풀기</button>
-                    </form>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(blocks)}">
+            <table class="manage-table">
+                <thead>
+                <tr>
+                    <th>아이디</th>
+                    <th>차단한 날</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="b : ${blocks}">
+                    <td class="col-title">
+                        <a th:href="@{/blog/{u}(u=${b.blocked.username})}" th:text="${b.blocked.username}">아이디</a>
+                    </td>
+                    <td class="meta" th:text="${#temporals.format(b.createdAt, 'yyyy-MM-dd')}">날짜</td>
+                    <td class="col-actions">
+                        <form th:action="@{/manage/blocks/{u}/delete(u=${b.blocked.username})}" method="post" class="inline">
+                            <button type="submit" class="btn btn-sm">차단 풀기</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
     </section>
 </main>
 

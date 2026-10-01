@@ -527,14 +527,14 @@ class MemberBlogTests {
         write("alice", "앨리스 관리검색 사과", "본문");
 
         // 일반 회원은 자기 글에서만 찾는다
-        String mine = mvc.perform(get("/manage").with(user("bob")).param("q", "관리검색 사과"))
+        String mine = mvc.perform(get("/manage/posts").with(user("bob")).param("q", "관리검색 사과"))
                 .andExpect(content().string(containsString("검색 결과 <span>2</span>건")))
                 .andReturn().getResponse().getContentAsString();
         assertThat(mine).doesNotContain("앨리스 관리검색 사과");
         // 관리자는 모든 글에서, 작성자 아이디로도 찾는다
-        mvc.perform(get("/manage").with(user("admin").roles("ADMIN")).param("q", "관리검색 사과"))
+        mvc.perform(get("/manage/posts").with(user("admin").roles("ADMIN")).param("q", "관리검색 사과"))
                 .andExpect(content().string(containsString("검색 결과 <span>3</span>건")));
-        mvc.perform(get("/manage").with(user("admin").roles("ADMIN")).param("q", "bob"))
+        mvc.perform(get("/manage/posts").with(user("admin").roles("ADMIN")).param("q", "bob"))
                 .andExpect(content().string(containsString("관리검색 사과 글")));
     }
 
@@ -553,6 +553,26 @@ class MemberBlogTests {
         String longAgo = mainContent(mvc.perform(get("/").param("date", today.minusYears(5).toString()))
                 .andReturn().getResponse().getContentAsString());
         assertThat(longAgo).doesNotContain("달력 테스트 오늘 글").contains("에 쓴 글");
+    }
+
+    @Test
+    void 블로그_관리에_들어가면_통계가_나온다() throws Exception {
+        if (!userService.exists("hana")) {
+            userService.register("hana", "password123", "USER");
+        }
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("hana"))
+                        .param("title", "통계 테스트 글").param("content", "본문"))
+                .andReturn().getResponse().getRedirectedUrl();
+        // 다른 사람 두 명이 글을 읽는다 → 블로그 방문 2, 글 조회 2
+        mvc.perform(get(location).session(new MockHttpSession()));
+        mvc.perform(get(location).session(new MockHttpSession()));
+
+        String html = mvc.perform(get("/manage").with(user("hana")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(html).contains("최근 7일 방문자", "통계 테스트 글", "오늘 방문", "class=\"bar-chart\"");
+        assertThat(html.substring(html.indexOf("오늘 방문"))).contains("<strong class=\"stat-value\">2</strong>");
+        assertThat(html).contains("글 조회 2");
     }
 
     /** 사이드바(인기 글 등)에도 글 제목이 나오므로 본문 영역만 잘라서 순서를 본다 */

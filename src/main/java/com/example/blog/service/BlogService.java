@@ -39,15 +39,17 @@ public class BlogService {
     private final SubscriptionRepository subscriptionRepository;
     private final CategoryService categoryService;
     private final UserBlockRepository blockRepository;
+    private final StatsService statsService;
 
     public BlogService(UserRepository userRepository, PostRepository postRepository,
                        SubscriptionRepository subscriptionRepository, CategoryService categoryService,
-                       UserBlockRepository blockRepository) {
+                       UserBlockRepository blockRepository, StatsService statsService) {
         this.userRepository = userRepository;
         this.postRepository = postRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.categoryService = categoryService;
         this.blockRepository = blockRepository;
+        this.statsService = statsService;
     }
 
     public User owner(String username) {
@@ -125,7 +127,9 @@ public class BlogService {
         }
         if (userRepository.increaseBlogVisits(blogOwner) == 0) {
             visited.remove(blogOwner); // 없는 회원
+            return;
         }
+        statsService.recordBlogVisit(blogOwner);
     }
 
     // ===== 구독 =====
