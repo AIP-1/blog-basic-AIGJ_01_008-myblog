@@ -6,3 +6,8 @@ data/
 *.iml
 .vscode/
 data-backup-*/
+node_modules/
+build/
+out/
+.env
+*.class
