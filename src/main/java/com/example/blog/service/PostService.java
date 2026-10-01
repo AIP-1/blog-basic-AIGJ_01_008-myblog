@@ -153,7 +153,9 @@ public class PostService {
     @Transactional
     public Post create(String title, String content, Long categoryId, PostStatus status, String username) {
         User author = userService.get(username);
-        return postRepository.save(new Post(title, content, categoryService.findUsable(categoryId, username), status, null, author));
+        Post post = postRepository.save(new Post(title, content, categoryService.findUsable(categoryId, username), status, null, author));
+        notifySubscribersIfPublished(post);
+        return post;
     }
 
     @Transactional
@@ -162,6 +164,7 @@ public class PostService {
         checkEditable(post, auth);
         post.update(title, content, categoryService.findUsable(categoryId, post.getAuthor().getUsername()));
         post.changeStatus(status);
+        notifySubscribersIfPublished(post);
     }
 
     /**
@@ -213,6 +216,14 @@ public class PostService {
         Post post = get(id);
         checkEditable(post, auth);
         post.changeStatus(status);
+        notifySubscribersIfPublished(post);
+    }
+
+    /** 글이 처음 공개되는 순간 구독자에게 알린다 (다시 공개해도 한 번만) */
+    private void notifySubscribersIfPublished(Post post) {
+        if (post.markSubscribersNotifiedIfPublic()) {
+            notificationService.notifyNewPost(post);
+        }
     }
 
     @Transactional

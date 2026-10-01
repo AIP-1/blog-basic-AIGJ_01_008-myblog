@@ -2,8 +2,11 @@ package com.example.blog.service;
 
 import com.example.blog.domain.Comment;
 import com.example.blog.domain.Notification;
+import com.example.blog.domain.Post;
+import com.example.blog.domain.Subscription;
 import com.example.blog.domain.User;
 import com.example.blog.repository.NotificationRepository;
+import com.example.blog.repository.SubscriptionRepository;
 import com.example.blog.repository.UserBlockRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,10 +28,13 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserBlockRepository blockRepository;
+    private final SubscriptionRepository subscriptionRepository;
 
-    public NotificationService(NotificationRepository notificationRepository, UserBlockRepository blockRepository) {
+    public NotificationService(NotificationRepository notificationRepository, UserBlockRepository blockRepository,
+                               SubscriptionRepository subscriptionRepository) {
         this.notificationRepository = notificationRepository;
         this.blockRepository = blockRepository;
+        this.subscriptionRepository = subscriptionRepository;
     }
 
     /**
@@ -58,6 +64,17 @@ public class NotificationService {
         notificationRepository.saveAll(notifications.values());
     }
 
+    /** 새 글이 처음 공개되면 글쓴이 블로그의 구독자들에게 알린다 */
+    @Transactional
+    public void notifyNewPost(Post post) {
+        List<Notification> notifications = subscriptionRepository.findByBlogOwner(post.getAuthor()).stream()
+                .map(Subscription::getSubscriber)
+                .filter(u -> !blockRepository.existsByBlockerUsernameAndBlockedUsername(u.getUsername(), post.getAuthor().getUsername()))
+                .map(u -> Notification.newPost(u, post))
+                .toList();
+        notificationRepository.saveAll(notifications);
+    }
+
     public long unreadCount(String username) {
         return notificationRepository.countByRecipientUsernameAndIsReadFalse(username);
     }
@@ -78,7 +95,7 @@ public class NotificationService {
                 .filter(n -> n.getRecipient().getUsername().equals(username))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."));
         notification.markRead();
-        return "/posts/" + notification.getPost().getId() + "#comment-" + notification.getComment().getId();
+        return notification.targetUrl();
     }
 
     @Transactional

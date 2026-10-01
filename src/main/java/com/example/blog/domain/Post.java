@@ -56,6 +56,13 @@ public class Post {
     @Formula("(select count(*) from post_like l where l.post_id = id)")
     private long likeCount;
 
+    /**
+     * 구독자에게 새 글 알림을 보냈는지. 처음 공개될 때 한 번만 보낸다.
+     * 이 기능 전에 있던 글은 알림 대상이 아니므로 기존 행은 true 로 채운다.
+     */
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean subscribersNotified;
+
     /** 관리자가 지정한 공지사항 (사이드바 공지 칸에 보인다) */
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean notice;
@@ -88,6 +95,15 @@ public class Post {
             this.updatedAt = this.createdAt;
         }
         this.status = newStatus;
+    }
+
+    /** 공개 상태이고 아직 구독자 알림을 안 보냈으면 true 를 돌려주고 보낸 것으로 표시 */
+    public boolean markSubscribersNotifiedIfPublic() {
+        if (!isPublic() || subscribersNotified) {
+            return false;
+        }
+        subscribersNotified = true;
+        return true;
     }
 
     public void changeNotice(boolean notice) {

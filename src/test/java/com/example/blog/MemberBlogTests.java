@@ -575,6 +575,41 @@ class MemberBlogTests {
         assertThat(html).contains("글 조회 2");
     }
 
+    @Test
+    void 구독한_블로그에_새_글이_공개되면_알림이_온다() throws Exception {
+        for (String name : new String[]{"ivy", "jack"}) {
+            if (!userService.exists(name)) {
+                userService.register(name, "password123", "USER");
+            }
+        }
+        mvc.perform(post("/blog/ivy/subscribe").with(csrf()).with(user("jack")));
+        long before = notificationService.unreadCount("jack");
+
+        // 비공개로 쓰면 알림 없음 → 공개로 바꾸는 순간 한 번
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("ivy"))
+                        .param("title", "아이비의 새 글").param("content", "본문").param("status", "PRIVATE"))
+                .andReturn().getResponse().getRedirectedUrl();
+        String id = location.substring(location.lastIndexOf('/') + 1);
+        assertThat(notificationService.unreadCount("jack")).isEqualTo(before);
+
+        mvc.perform(post("/manage/posts/" + id + "/status").with(csrf()).with(user("ivy")).param("status", "PUBLIC"));
+        assertThat(notificationService.unreadCount("jack")).isEqualTo(before + 1);
+        // 다시 비공개 → 공개해도 또 보내지 않는다
+        mvc.perform(post("/manage/posts/" + id + "/status").with(csrf()).with(user("ivy")).param("status", "PRIVATE"));
+        mvc.perform(post("/manage/posts/" + id + "/status").with(csrf()).with(user("ivy")).param("status", "PUBLIC"));
+        assertThat(notificationService.unreadCount("jack")).isEqualTo(before + 1);
+
+        mvc.perform(get("/").with(user("jack")))
+                .andExpect(content().string(containsString("님이 새 글을 올렸어요")))
+                .andExpect(content().string(containsString("아이비의 새 글")));
+        Long notiId = notificationService.recent("jack").get(0).getId();
+        mvc.perform(get("/notifications/" + notiId).with(user("jack"))).andExpect(redirectedUrl(location));
+
+        // 바로 공개로 쓴 글도 알림
+        write("ivy", "아이비의 두 번째 글", "본문");
+        assertThat(notificationService.unreadCount("jack")).isEqualTo(before + 1);
+    }
+
     /** 사이드바(인기 글 등)에도 글 제목이 나오므로 본문 영역만 잘라서 순서를 본다 */
     private static String mainContent(String html) {
         return html.substring(html.indexOf("<section class=\"content\">"));

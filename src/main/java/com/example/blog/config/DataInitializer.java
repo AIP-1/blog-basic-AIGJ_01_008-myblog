@@ -61,6 +61,7 @@ public class DataInitializer implements CommandLineRunner {
     @Transactional
     public void run(String... args) throws IOException {
         dropOldCategoryNameUnique();
+        allowNotificationWithoutComment();
 
         User admin = userService.exists(ADMIN_USERNAME)
                 ? userService.get(ADMIN_USERNAME)
@@ -105,6 +106,21 @@ public class DataInitializer implements CommandLineRunner {
         for (String name : names) {
             jdbcTemplate.execute("alter table category drop constraint \"" + name + "\"");
             log.info("카테고리 이름 UNIQUE 제약({})을 지웠습니다.", name);
+        }
+    }
+
+    /**
+     * 새 글 알림은 댓글이 없으므로 notification.comment_id 가 비어 있을 수 있어야 한다.
+     * ddl-auto: update 는 NOT NULL 을 풀지 않으므로 기존 DB 에서 직접 푼다.
+     */
+    private void allowNotificationWithoutComment() {
+        List<String> nullable = jdbcTemplate.queryForList("""
+                select is_nullable from information_schema.columns
+                where table_name = 'NOTIFICATION' and column_name = 'COMMENT_ID'
+                """, String.class);
+        if (nullable.contains("NO")) {
+            jdbcTemplate.execute("alter table notification alter column comment_id set null");
+            log.info("알림의 comment_id 를 비어 있어도 되도록 바꿨습니다.");
         }
     }
 

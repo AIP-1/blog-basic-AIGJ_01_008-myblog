@@ -99,7 +99,7 @@
                         </th:block>
                     </ul>
                     <p th:if="${#lists.isEmpty(recentNotifications)}" class="meta noti-empty">
-                        아직 알림이 없어요.<br>내 글에 댓글이나 내 댓글에 답글이 달리면 여기에 알려 드려요.</p>
+                        아직 알림이 없어요.<br>내 글에 댓글·답글이 달리거나 구독한 블로그에 새 글이 올라오면 알려 드려요.</p>
                     <a class="noti-all" th:href="@{/notifications}">알림 전체 보기 →</a>
                 </div>
             </details>
@@ -295,7 +295,8 @@
     <a th:href="@{/notifications/{id}(id=${n.id})}">
         <span class="noti-text"><strong th:text="${n.actor.username}">bob</strong><span th:text="${n.type.message}">님이 …</span></span>
         <span class="noti-post" th:text="${n.post.title}">글 제목</span>
-        <span class="noti-snippet" th:text="${n.comment.deleted} ? '(삭제된 댓글)' : ${#strings.abbreviate(n.comment.content, 60)}">댓글 내용</span>
+        <span class="noti-snippet" th:if="${n.comment != null}"
+              th:text="${n.comment.deleted} ? '(삭제된 댓글)' : ${#strings.abbreviate(n.comment.content, 60)}">댓글 내용</span>
         <time class="meta" th:datetime="${n.createdAt}" th:title="${@timeAgo.exact(n.createdAt)}"
               th:text="${@timeAgo.format(n.createdAt)}">방금 전</time>
     </a>

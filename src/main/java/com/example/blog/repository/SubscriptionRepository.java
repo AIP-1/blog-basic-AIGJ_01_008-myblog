@@ -15,5 +15,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     long countByBlogOwner(User blogOwner);
 
+    List<Subscription> findByBlogOwner(User blogOwner);
+
     List<Subscription> findBySubscriberUsernameOrderByCreatedAtDesc(String subscriber);
 }
