@@ -62,6 +62,7 @@ public class DataInitializer implements CommandLineRunner {
     public void run(String... args) throws IOException {
         dropOldCategoryNameUnique();
         allowNotificationWithoutComment();
+        enumColumnsToVarchar();
 
         User admin = userService.exists(ADMIN_USERNAME)
                 ? userService.get(ADMIN_USERNAME)
@@ -121,6 +122,22 @@ public class DataInitializer implements CommandLineRunner {
         if (nullable.contains("NO")) {
             jdbcTemplate.execute("alter table notification alter column comment_id set null");
             log.info("알림의 comment_id 를 비어 있어도 되도록 바꿨습니다.");
+        }
+    }
+
+    /**
+     * 예전 DB 는 enum 칸(알림 종류, 글 상태)이 H2 ENUM 타입으로 만들어져 정해진 값만 받는다.
+     * 새 값(예: 새 글 알림 NEW_POST)을 저장할 수 있도록 일반 문자열 칸으로 바꾼다.
+     */
+    private void enumColumnsToVarchar() {
+        List<Map<String, Object>> columns = jdbcTemplate.queryForList("""
+                select table_name, column_name from information_schema.columns
+                where data_type = 'ENUM' and table_name in ('NOTIFICATION', 'POST')
+                """);
+        for (Map<String, Object> c : columns) {
+            jdbcTemplate.execute("alter table " + c.get("TABLE_NAME") + " alter column \"" + c.get("COLUMN_NAME")
+                    + "\" set data type varchar(20)");
+            log.info("{}.{} 칸을 ENUM 에서 문자열로 바꿨습니다.", c.get("TABLE_NAME"), c.get("COLUMN_NAME"));
         }
     }
 

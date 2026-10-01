@@ -145,6 +145,7 @@ public class PostController {
     @PostMapping("/posts/new")
     public String create(@Valid @ModelAttribute("form") PostForm form, BindingResult result,
                          Authentication auth, Model model) {
+        requireCategoryUnlessAdmin(form, result, auth);
         if (result.hasErrors()) {
             model.addAttribute("drafts", postService.drafts(auth.getName()));
             model.addAttribute("isDraft", true);
@@ -179,6 +180,7 @@ public class PostController {
     @PostMapping("/posts/{id}/edit")
     public String update(@PathVariable Long id, @Valid @ModelAttribute("form") PostForm form,
                          BindingResult result, Authentication auth, Model model) {
+        requireCategoryUnlessAdmin(form, result, auth);
         if (result.hasErrors()) {
             model.addAttribute("postId", id);
             model.addAttribute("isDraft", postService.get(id).isDraft());
@@ -186,6 +188,13 @@ public class PostController {
         }
         postService.update(id, form.getTitle(), form.getContent(), form.getCategoryId(), form.publishStatus(), auth);
         return "redirect:/posts/" + id;
+    }
+
+    /** 미분류(카테고리 없음)로 발행할 수 있는 건 관리자뿐 (임시저장은 미분류여도 된다) */
+    private void requireCategoryUnlessAdmin(PostForm form, BindingResult result, Authentication auth) {
+        if (form.getCategoryId() == null && !postService.isAdmin(auth)) {
+            result.rejectValue("categoryId", "required", "카테고리를 선택하세요.");
+        }
     }
 
     public record DraftRequest(Long id, String title, Long categoryId, String content) {

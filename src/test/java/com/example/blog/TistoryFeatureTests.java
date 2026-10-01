@@ -51,6 +51,11 @@ class TistoryFeatureTests {
         }
     }
 
+    /** 공용 '자유' 카테고리 (일반 회원은 카테고리를 골라야 발행된다) */
+    private String free() {
+        return categoryRepository.findByOwnerIsNullAndName("자유").orElseThrow().getId().toString();
+    }
+
     private long saveDraft(Long id, String title, String content, String username) throws Exception {
         String body = objectMapper.writeValueAsString(java.util.Map.of(
                 "title", title, "content", content, "id", id == null ? "" : id));
@@ -77,7 +82,7 @@ class TistoryFeatureTests {
         mvc.perform(get("/posts/new").with(user("writer")))
                 .andExpect(content().string(containsString("임시저장 테스트 글 v2")));
 
-        mvc.perform(post("/posts/" + id + "/edit").with(csrf()).with(user("writer"))
+        mvc.perform(post("/posts/" + id + "/edit").with(csrf()).with(user("writer")).param("categoryId", free())
                         .param("title", "발행된 글").param("content", "본문").param("status", "PUBLIC"))
                 .andExpect(redirectedUrl("/posts/" + id));
         mvc.perform(get("/posts/" + id)).andExpect(status().isOk());
@@ -98,7 +103,7 @@ class TistoryFeatureTests {
 
     @Test
     void 비공개_글은_작성자만_볼_수_있다() throws Exception {
-        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("writer"))
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("writer")).param("categoryId", free())
                         .param("title", "나만 보는 비공개 글").param("content", "비밀").param("status", "PRIVATE"))
                 .andReturn().getResponse().getRedirectedUrl();
 

@@ -101,7 +101,7 @@ class MemberBlogTests {
 
     @Test
     void 구독하면_피드에_새_글이_모인다() throws Exception {
-        mvc.perform(post("/posts/new").with(csrf()).with(user("alice"))
+        mvc.perform(post("/posts/new").with(csrf()).with(user("alice")).param("categoryId", free())
                 .param("title", "앨리스의 구독 테스트 글").param("content", "본문"));
 
         mvc.perform(get("/feed").with(user("bob")))
@@ -131,7 +131,7 @@ class MemberBlogTests {
             if (!userService.exists(name)) {
                 userService.register(name, "password123", "USER");
             }
-            mvc.perform(post("/posts/new").with(csrf()).with(user(name))
+            mvc.perform(post("/posts/new").with(csrf()).with(user(name)).param("categoryId", free())
                     .param("title", name + "의 순위 테스트 글").param("content", "본문"));
         }
         long before = userService.get("dave").getBlogVisits();
@@ -156,7 +156,7 @@ class MemberBlogTests {
 
     @Test
     void 글을_읽으면_작성자_블로그_방문으로_센다() throws Exception {
-        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice"))
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice")).param("categoryId", free())
                         .param("title", "방문 테스트 글").param("content", "본문"))
                 .andReturn().getResponse().getRedirectedUrl();
         long before = userService.get("alice").getBlogVisits();
@@ -206,7 +206,7 @@ class MemberBlogTests {
 
     @Test
     void 조회수가_많은_글이_인기_글_맨_위에_나온다() throws Exception {
-        String hot = mvc.perform(post("/posts/new").with(csrf()).with(user("alice"))
+        String hot = mvc.perform(post("/posts/new").with(csrf()).with(user("alice")).param("categoryId", free())
                         .param("title", "조회수 많은 인기 글").param("content", "본문"))
                 .andReturn().getResponse().getRedirectedUrl();
         long id = Long.parseLong(hot.substring(hot.lastIndexOf('/') + 1));
@@ -230,7 +230,7 @@ class MemberBlogTests {
 
     @Test
     void 좋아요를_누르고_다시_누르면_취소된다() throws Exception {
-        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice"))
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice")).param("categoryId", free())
                         .param("title", "좋아요 테스트 글").param("content", "본문"))
                 .andReturn().getResponse().getRedirectedUrl();
 
@@ -271,7 +271,11 @@ class MemberBlogTests {
 
         writeIn("erin", "김치찌개 레시피", cook);
         writeIn("erin", "공용 카테고리에 쓴 글", shared);
-        writeIn("erin", "분류 없는 글", null);
+        // 일반 회원은 미분류로 발행할 수 없으니, 카테고리에 쓴 뒤 그 카테고리를 지워 미분류로 만든다
+        mvc.perform(post("/manage/blog/categories").with(csrf()).with(user("erin")).param("name", "임시"));
+        Long temp = categoryRepository.findByOwnerUsernameAndName("erin", "임시").orElseThrow().getId();
+        writeIn("erin", "분류 없는 글", temp);
+        mvc.perform(post("/manage/blog/categories/" + temp + "/delete").with(csrf()).with(user("erin")));
 
         mvc.perform(get("/blog/erin"))
                 .andExpect(content().string(containsString("category=" + cook)))
@@ -291,16 +295,14 @@ class MemberBlogTests {
     }
 
     private void writeIn(String username, String title, Long categoryId) throws Exception {
-        var request = post("/posts/new").with(csrf()).with(user(username)).param("title", title).param("content", "본문");
-        if (categoryId != null) {
-            request.param("categoryId", categoryId.toString());
-        }
+        var request = post("/posts/new").with(csrf()).with(user(username)).param("title", title).param("content", "본문")
+                .param("categoryId", categoryId.toString());
         mvc.perform(request).andExpect(status().is3xxRedirection());
     }
 
     @Test
     void 관리자가_공지로_등록한_글이_사이드바_공지사항에_나온다() throws Exception {
-        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice"))
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice")).param("categoryId", free())
                         .param("title", "서버 점검 안내").param("content", "본문"))
                 .andReturn().getResponse().getRedirectedUrl();
         String id = location.substring(location.lastIndexOf('/') + 1);
@@ -336,7 +338,7 @@ class MemberBlogTests {
 
     @Test
     void 댓글에_답글을_달고_지울_수_있다() throws Exception {
-        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice"))
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice")).param("categoryId", free())
                         .param("title", "답글 테스트 글").param("content", "본문"))
                 .andReturn().getResponse().getRedirectedUrl();
         long postId = Long.parseLong(location.substring(location.lastIndexOf('/') + 1));
@@ -379,7 +381,7 @@ class MemberBlogTests {
 
     @Test
     void 삭제된_댓글의_마지막_답글을_지우면_댓글도_사라진다() throws Exception {
-        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice"))
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("alice")).param("categoryId", free())
                         .param("title", "정리 테스트 글").param("content", "본문"))
                 .andReturn().getResponse().getRedirectedUrl();
         mvc.perform(post(location + "/comments").with(csrf()).with(user("bob")).param("content", "곧 지울 댓글"));
@@ -403,7 +405,7 @@ class MemberBlogTests {
             userService.register("frank", "password123", "USER");
         }
         long before = notificationService.unreadCount("frank");
-        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("frank"))
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("frank")).param("categoryId", free())
                         .param("title", "알림 테스트 글").param("content", "본문"))
                 .andReturn().getResponse().getRedirectedUrl();
 
@@ -485,7 +487,7 @@ class MemberBlogTests {
             }
         }
         write("troll", "트롤의 차단 테스트 글", "본문");
-        String ginaPost = mvc.perform(post("/posts/new").with(csrf()).with(user("gina"))
+        String ginaPost = mvc.perform(post("/posts/new").with(csrf()).with(user("gina")).param("categoryId", free())
                         .param("title", "지나의 글").param("content", "본문"))
                 .andReturn().getResponse().getRedirectedUrl();
         mvc.perform(post(ginaPost + "/comments").with(csrf()).with(user("troll")).param("content", "트롤의 댓글"));
@@ -560,7 +562,7 @@ class MemberBlogTests {
         if (!userService.exists("hana")) {
             userService.register("hana", "password123", "USER");
         }
-        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("hana"))
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("hana")).param("categoryId", free())
                         .param("title", "통계 테스트 글").param("content", "본문"))
                 .andReturn().getResponse().getRedirectedUrl();
         // 다른 사람 두 명이 글을 읽는다 → 블로그 방문 2, 글 조회 2
@@ -586,7 +588,7 @@ class MemberBlogTests {
         long before = notificationService.unreadCount("jack");
 
         // 비공개로 쓰면 알림 없음 → 공개로 바꾸는 순간 한 번
-        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("ivy"))
+        String location = mvc.perform(post("/posts/new").with(csrf()).with(user("ivy")).param("categoryId", free())
                         .param("title", "아이비의 새 글").param("content", "본문").param("status", "PRIVATE"))
                 .andReturn().getResponse().getRedirectedUrl();
         String id = location.substring(location.lastIndexOf('/') + 1);
@@ -610,13 +612,35 @@ class MemberBlogTests {
         assertThat(notificationService.unreadCount("jack")).isEqualTo(before + 1);
     }
 
+    @Test
+    void 일반_회원은_미분류로_발행할_수_없고_관리자는_된다() throws Exception {
+        mvc.perform(post("/posts/new").with(csrf()).with(user("bob"))
+                        .param("title", "미분류 시도").param("content", "본문"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("카테고리를 선택하세요.")));
+        assertThat(postRepository.findAll()).noneMatch(p -> p.getTitle().equals("미분류 시도"));
+
+        mvc.perform(post("/posts/new").with(csrf()).with(user("admin").roles("ADMIN"))
+                        .param("title", "관리자 미분류 글").param("content", "본문"))
+                .andExpect(status().is3xxRedirection());
+        // 임시저장은 미분류여도 된다
+        mvc.perform(post("/posts/draft").with(csrf()).with(user("bob"))
+                        .contentType("application/json").content("{\"title\":\"미분류 초안\",\"content\":\"x\"}"))
+                .andExpect(status().isOk());
+    }
+
+    /** 공용 '자유' 카테고리 (일반 회원은 카테고리를 골라야 발행된다) */
+    private String free() {
+        return categoryRepository.findByOwnerIsNullAndName("자유").orElseThrow().getId().toString();
+    }
+
     /** 사이드바(인기 글 등)에도 글 제목이 나오므로 본문 영역만 잘라서 순서를 본다 */
     private static String mainContent(String html) {
         return html.substring(html.indexOf("<section class=\"content\">"));
     }
 
     private void write(String username, String title, String content) throws Exception {
-        mvc.perform(post("/posts/new").with(csrf()).with(user(username))
+        mvc.perform(post("/posts/new").with(csrf()).with(user(username)).param("categoryId", free())
                 .param("title", title).param("content", content));
     }
 

@@ -1,6 +1,8 @@
 package com.example.blog.domain;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hibernate.annotations.Formula;
 
 import java.time.LocalDateTime;
@@ -27,7 +29,9 @@ public class Post {
     @ManyToOne(fetch = FetchType.LAZY)
     private Category category;
 
+    /** DB 에는 일반 문자열로 (H2 의 ENUM 타입이면 값이 늘 때 기존 DB 가 새 값을 거부한다) */
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 20)
     private PostStatus status;
 

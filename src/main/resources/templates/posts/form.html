@@ -21,8 +21,10 @@
           th:action="${postId == null} ? @{/posts/new} : @{/posts/{id}/edit(id=${postId})}">
 
         <div class="editor-head">
-            <select th:field="*{categoryId}" class="editor-category" aria-label="카테고리">
-                <option value="">카테고리 (미분류)</option>
+            <!-- 미분류로 발행은 관리자만. 다른 회원은 카테고리를 꼭 골라야 발행된다 (임시저장은 괜찮다) -->
+            <select th:field="*{categoryId}" class="editor-category" aria-label="카테고리"
+                    th:required="${!#authorization.expression('hasRole(''ADMIN'')')}">
+                <option value="" th:text="${#authorization.expression('hasRole(''ADMIN'')')} ? '카테고리 (미분류)' : '카테고리를 선택하세요'">카테고리 (미분류)</option>
                 <optgroup label="공용">
                     <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}">카테고리</option>
                 </optgroup>
@@ -32,6 +34,7 @@
             </select>
             <input type="text" th:field="*{title}" class="editor-title" placeholder="제목을 입력하세요" maxlength="200"
                    autocomplete="off">
+            <p class="error" th:if="${#fields.hasErrors('categoryId')}" th:errors="*{categoryId}"></p>
             <p class="error" th:if="${#fields.hasErrors('title')}" th:errors="*{title}"></p>
         </div>
 
