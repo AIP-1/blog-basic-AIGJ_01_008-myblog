@@ -2,8 +2,6 @@
 
 **2팀 AIGJ_01_008 박민수**
 
-> 🔗 배포 주소: (배포 후 여기에 Render 주소를 적어 주세요)
-
 Spring Boot로 만든 블로그 서비스입니다. 처음 실행하면 **Java 입문·중급 강좌 글 13개**가 자동으로 등록됩니다.
 
 ## 기술 스택
@@ -21,7 +19,8 @@ Spring Boot로 만든 블로그 서비스입니다. 처음 실행하면 **Java �
 brew install openjdk@17 maven
 
 # 실행
-cd java-blog
+git clone https://github.com/AIP-1/blog-basic-AIGJ_01_008-myblog.git
+cd blog-basic-AIGJ_01_008-myblog
 mvn spring-boot:run
 ```
 
